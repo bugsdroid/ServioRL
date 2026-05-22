@@ -11,7 +11,6 @@ class HomeScreen extends StatelessWidget {
       backgroundColor: AppColors.background,
       body: CustomScrollView(
         slivers: [
-          // ── AppBar with logo ──────────────────────────────────────────
           SliverAppBar(
             pinned: true,
             backgroundColor: AppColors.background,
@@ -23,34 +22,24 @@ class HomeScreen extends StatelessWidget {
               ),
             ],
           ),
-
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                // ── System status ───────────────────────────────────────
                 _SystemStatus(),
                 const SizedBox(height: 20),
-
-                // ── Service cards ───────────────────────────────────────
                 _SectionLabel('Overview'),
                 const SizedBox(height: 10),
                 _ServiceGrid(),
                 const SizedBox(height: 24),
-
-                // ── Recent activity ─────────────────────────────────────
                 _SectionHeader(label: 'Activity', onTap: () {}),
                 const SizedBox(height: 10),
                 _ActivityList(),
                 const SizedBox(height: 24),
-
-                // ── Download overview ───────────────────────────────────
                 _SectionLabel('Download Overview'),
                 const SizedBox(height: 10),
                 _DownloadOverview(),
                 const SizedBox(height: 20),
-
-                // ── Storage bar ─────────────────────────────────────────
                 _StorageBar(),
               ]),
             ),
@@ -60,8 +49,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
-
-// ── System status pill ────────────────────────────────────────────────────────
 
 class _SystemStatus extends StatelessWidget {
   @override
@@ -96,8 +83,6 @@ class _SystemStatus extends StatelessWidget {
   }
 }
 
-// ── Section helpers ───────────────────────────────────────────────────────────
-
 class _SectionLabel extends StatelessWidget {
   final String label;
   const _SectionLabel(this.label);
@@ -127,14 +112,14 @@ class _SectionHeader extends StatelessWidget {
       );
 }
 
-// ── Service grid (Overseerr / Sonarr / Radarr / Transmission) ────────────────
+// ── Service grid: Seerr / Sonarr / Radarr / Transmission ─────────────────────
 
 class _ServiceGrid extends StatelessWidget {
   static const _services = [
-    (name: 'Overseerr', icon: Icons.explore_rounded,  color: AppColors.teal),
-    (name: 'Sonarr',    icon: Icons.tv_rounded,        color: Color(0xFF2196F3)),
-    (name: 'Radarr',    icon: Icons.movie_rounded,     color: Color(0xFFFF9800)),
-    (name: 'Transmission', icon: Icons.download_rounded, color: Color(0xFF9C27B0)),
+    (name: 'Seerr',        icon: Icons.explore_rounded,   color: AppColors.teal),
+    (name: 'Sonarr',       icon: Icons.tv_rounded,         color: Color(0xFF2196F3)),
+    (name: 'Radarr',       icon: Icons.movie_rounded,      color: Color(0xFFFF9800)),
+    (name: 'Transmission', icon: Icons.download_rounded,   color: Color(0xFF9C27B0)),
   ];
 
   @override
@@ -199,10 +184,7 @@ class _ServiceCard extends StatelessWidget {
               ),
               const SizedBox(width: 3),
               const Text('Online',
-                  style: TextStyle(
-                    color: AppColors.success,
-                    fontSize: 9,
-                  )),
+                  style: TextStyle(color: AppColors.success, fontSize: 9)),
             ],
           ),
         ],
@@ -211,14 +193,12 @@ class _ServiceCard extends StatelessWidget {
   }
 }
 
-// ── Activity list ─────────────────────────────────────────────────────────────
-
 class _ActivityList extends StatelessWidget {
   static const _items = [
-    (title: 'Dune: Part Two',      subtitle: 'Movie downloaded',    time: '2m ago',  icon: Icons.movie_rounded),
-    (title: 'The Boys S04E06',     subtitle: 'Episode downloaded',  time: '5m ago',  icon: Icons.tv_rounded),
-    (title: 'Oppenheimer',         subtitle: 'Added to Radarr',     time: '12m ago', icon: Icons.add_circle_outline_rounded),
-    (title: 'Foundation S02E03',   subtitle: 'Episode downloaded',  time: '18m ago', icon: Icons.tv_rounded),
+    (title: 'Dune: Part Two',    subtitle: 'Movie downloaded',   time: '2m ago',  icon: Icons.movie_rounded),
+    (title: 'The Boys S04E06',   subtitle: 'Episode downloaded', time: '5m ago',  icon: Icons.tv_rounded),
+    (title: 'Oppenheimer',       subtitle: 'Added to Radarr',    time: '12m ago', icon: Icons.add_circle_outline_rounded),
+    (title: 'Foundation S02E03', subtitle: 'Episode downloaded', time: '18m ago', icon: Icons.tv_rounded),
   ];
 
   @override
@@ -237,8 +217,7 @@ class _ActivityList extends StatelessWidget {
               ListTile(
                 dense: true,
                 leading: Container(
-                  width: 36,
-                  height: 36,
+                  width: 36, height: 36,
                   decoration: BoxDecoration(
                     color: AppColors.surfaceVariant,
                     borderRadius: BorderRadius.circular(8),
@@ -271,8 +250,6 @@ class _ActivityList extends StatelessWidget {
     );
   }
 }
-
-// ── Download overview ─────────────────────────────────────────────────────────
 
 class _DownloadOverview extends StatelessWidget {
   @override
@@ -327,8 +304,6 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
-
-// ── Storage bar ───────────────────────────────────────────────────────────────
 
 class _StorageBar extends StatelessWidget {
   @override
