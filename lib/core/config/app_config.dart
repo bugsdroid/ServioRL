@@ -5,8 +5,8 @@ class AppConfig {
   final String sonarrApiKey;
   final String radarrBaseUrl;
   final String radarrApiKey;
-  final String overseerrBaseUrl;
-  final String overseerrApiKey;
+  final String seerrBaseUrl;
+  final String seerrApiKey;
   final String transmissionBaseUrl;
   final String transmissionUsername;
   final String transmissionPassword;
@@ -18,8 +18,8 @@ class AppConfig {
     required this.sonarrApiKey,
     required this.radarrBaseUrl,
     required this.radarrApiKey,
-    required this.overseerrBaseUrl,
-    required this.overseerrApiKey,
+    required this.seerrBaseUrl,
+    required this.seerrApiKey,
     required this.transmissionBaseUrl,
     required this.transmissionUsername,
     required this.transmissionPassword,
@@ -32,8 +32,8 @@ class AppConfig {
     String? sonarrApiKey,
     String? radarrBaseUrl,
     String? radarrApiKey,
-    String? overseerrBaseUrl,
-    String? overseerrApiKey,
+    String? seerrBaseUrl,
+    String? seerrApiKey,
     String? transmissionBaseUrl,
     String? transmissionUsername,
     String? transmissionPassword,
@@ -45,8 +45,8 @@ class AppConfig {
         sonarrApiKey:         sonarrApiKey         ?? this.sonarrApiKey,
         radarrBaseUrl:        radarrBaseUrl        ?? this.radarrBaseUrl,
         radarrApiKey:         radarrApiKey         ?? this.radarrApiKey,
-        overseerrBaseUrl:     overseerrBaseUrl     ?? this.overseerrBaseUrl,
-        overseerrApiKey:      overseerrApiKey      ?? this.overseerrApiKey,
+        seerrBaseUrl:         seerrBaseUrl         ?? this.seerrBaseUrl,
+        seerrApiKey:          seerrApiKey          ?? this.seerrApiKey,
         transmissionBaseUrl:  transmissionBaseUrl  ?? this.transmissionBaseUrl,
         transmissionUsername: transmissionUsername ?? this.transmissionUsername,
         transmissionPassword: transmissionPassword ?? this.transmissionPassword,
@@ -57,7 +57,7 @@ class AppConfig {
   static AppConfig get empty => const AppConfig(
         sonarrBaseUrl: '',        sonarrApiKey: '',
         radarrBaseUrl: '',        radarrApiKey: '',
-        overseerrBaseUrl: '',     overseerrApiKey: '',
+        seerrBaseUrl: '',         seerrApiKey: '',
         transmissionBaseUrl: '',  transmissionUsername: '',
         transmissionPassword: '', bazarrBaseUrl: '',
         bazarrApiKey: '',
