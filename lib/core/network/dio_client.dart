@@ -23,9 +23,10 @@ final radarrDioProvider = Provider<Dio>((ref) {
   return buildDio(cfg.radarrBaseUrl, cfg.radarrApiKey);
 });
 
-final overseerrDioProvider = Provider<Dio>((ref) {
+// Seerr (bukan Overseerr)
+final seerrDioProvider = Provider<Dio>((ref) {
   final cfg = ref.watch(appConfigProvider);
-  return buildDio(cfg.overseerrBaseUrl, cfg.overseerrApiKey);
+  return buildDio(cfg.seerrBaseUrl, cfg.seerrApiKey);
 });
 
 final bazarrDioProvider = Provider<Dio>((ref) {
