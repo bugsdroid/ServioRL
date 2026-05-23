@@ -55,16 +55,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // ── Connections ─────────────────────────────────────────────
             _sectionHeader('Connections'),
             const SizedBox(height: 8),
+
+            // Seerr
             _ServiceTile(
-              name: 'Overseerr',
+              name: 'Seerr',
               icon: Icons.explore_rounded,
               color: AppColors.teal,
-              urlInitial: _draft.overseerrBaseUrl,
-              keyInitial: _draft.overseerrApiKey,
-              onUrlSaved: (v) => _draft = _draft.copyWith(overseerrBaseUrl: v),
-              onKeySaved: (v) => _draft = _draft.copyWith(overseerrApiKey: v),
+              urlInitial: _draft.seerrBaseUrl,
+              keyInitial: _draft.seerrApiKey,
+              onUrlSaved: (v) => _draft = _draft.copyWith(seerrBaseUrl: v),
+              onKeySaved: (v) => _draft = _draft.copyWith(seerrApiKey: v),
             ),
             const SizedBox(height: 8),
+
+            // Sonarr
             _ServiceTile(
               name: 'Sonarr',
               icon: Icons.tv_rounded,
@@ -75,6 +79,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onKeySaved: (v) => _draft = _draft.copyWith(sonarrApiKey: v),
             ),
             const SizedBox(height: 8),
+
+            // Radarr
             _ServiceTile(
               name: 'Radarr',
               icon: Icons.movie_rounded,
@@ -85,6 +91,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onKeySaved: (v) => _draft = _draft.copyWith(radarrApiKey: v),
             ),
             const SizedBox(height: 8),
+
+            // Transmission
             _ServiceTile(
               name: 'Transmission',
               icon: Icons.download_rounded,
@@ -96,16 +104,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onKeySaved: (v) => _draft = _draft.copyWith(transmissionUsername: v),
               extraChild: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: _inputField(
-                  label: 'Password',
-                  initial: _draft.transmissionPassword,
-                  obscure: true,
-                  required: false,
-                  onSaved: (v) => _draft = _draft.copyWith(transmissionPassword: v),
+                child: TextFormField(
+                  initialValue: _draft.transmissionPassword,
+                  obscureText: true,
+                  style: const TextStyle(
+                      color: AppColors.textPrimary, fontSize: 13),
+                  decoration: const InputDecoration(labelText: 'Password'),
+                  onSaved: (v) =>
+                      _draft = _draft.copyWith(transmissionPassword: v ?? ''),
                 ),
               ),
             ),
             const SizedBox(height: 8),
+
+            // Bazarr
             _ServiceTile(
               name: 'Bazarr',
               icon: Icons.subtitles_rounded,
@@ -115,18 +127,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onUrlSaved: (v) => _draft = _draft.copyWith(bazarrBaseUrl: v),
               onKeySaved: (v) => _draft = _draft.copyWith(bazarrApiKey: v),
             ),
-
-            // ── Add service placeholder ──────────────────────────────────
             const SizedBox(height: 8),
+
+            // Add service placeholder
             _AddServiceButton(),
 
             // ── General ─────────────────────────────────────────────────
             const SizedBox(height: 24),
             _sectionHeader('General'),
             const SizedBox(height: 8),
-            _generalTile(Icons.palette_outlined, 'Appearance', 'System'),
+            _generalTile(Icons.palette_outlined,       'Appearance',    'System'),
+            const SizedBox(height: 1),
             _generalTile(Icons.notifications_outlined, 'Notifications', ''),
-            _generalTile(Icons.info_outline_rounded, 'About', 'ServioRL v0.1.0'),
+            const SizedBox(height: 1),
+            _generalTile(Icons.info_outline_rounded,   'About',         'ServioRL v0.1.0'),
 
             const SizedBox(height: 32),
           ],
@@ -136,7 +150,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Widget _sectionHeader(String title) => Padding(
-        padding: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.only(bottom: 6),
         child: Text(title,
             style: const TextStyle(
               color: AppColors.textSecondary,
@@ -148,7 +162,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Widget _generalTile(IconData icon, String title, String trailing) =>
       Container(
-        margin: const EdgeInsets.only(bottom: 1),
         decoration: BoxDecoration(
           color: AppColors.card,
           border: Border.all(color: AppColors.border, width: 0.5),
@@ -157,7 +170,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         child: ListTile(
           leading: Icon(icon, color: AppColors.textSecondary, size: 20),
           title: Text(title,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+              style: const TextStyle(
+                  color: AppColors.textPrimary, fontSize: 14)),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -171,24 +185,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
         ),
-      );
-
-  static Widget _inputField({
-    required String label,
-    required String initial,
-    required void Function(String) onSaved,
-    bool obscure = false,
-    bool required = true,
-  }) =>
-      TextFormField(
-        initialValue: initial,
-        obscureText: obscure,
-        style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-        decoration: InputDecoration(labelText: label),
-        validator: required
-            ? (v) => (v == null || v.isEmpty) ? 'Required' : null
-            : null,
-        onSaved: (v) => onSaved(v ?? ''),
       );
 }
 
@@ -236,7 +232,6 @@ class _ServiceTileState extends State<_ServiceTile> {
       ),
       child: Column(
         children: [
-          // Header row
           InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () => setState(() => _expanded = !_expanded),
@@ -274,9 +269,9 @@ class _ServiceTileState extends State<_ServiceTile> {
                       ],
                     ),
                   ),
-                  // Connected badge
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: isConfigured
                           ? AppColors.tealSurface
@@ -306,8 +301,6 @@ class _ServiceTileState extends State<_ServiceTile> {
               ),
             ),
           ),
-
-          // Expanded fields
           if (_expanded) ...[
             const Divider(height: 0, indent: 14, endIndent: 14),
             Padding(
@@ -345,8 +338,6 @@ class _ServiceTileState extends State<_ServiceTile> {
     );
   }
 }
-
-// ── Add service button ────────────────────────────────────────────────────────
 
 class _AddServiceButton extends StatelessWidget {
   @override
