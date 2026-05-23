@@ -6,6 +6,8 @@ import '../../features/downloads/downloads_screen.dart';
 import '../../features/requests/requests_screen.dart';
 import '../../features/search/search_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/movies/movies_screen.dart';
+import '../../features/tv/tv_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -21,6 +23,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/settings',  builder: (c, s) => const SettingsScreen()),
         ],
       ),
+      // Full-screen routes (outside bottom nav)
+      GoRoute(path: '/movies', builder: (c, s) => const MoviesScreen()),
+      GoRoute(path: '/tv',     builder: (c, s) => const TvScreen()),
     ],
   );
 });
