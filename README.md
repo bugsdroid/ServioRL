@@ -10,10 +10,13 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Flutter-3.x-blue?logo=flutter&logoColor=white"/>
   <img src="https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Platform-Android-green?logo=android&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Platform-Android%205.0%2B-green?logo=android&logoColor=white"/>
   <img src="https://img.shields.io/badge/License-MIT-teal"/>
   <img src="https://img.shields.io/badge/Version-0.1.0-orange"/>
+  <img src="https://img.shields.io/badge/Status-Under%20Development-red?logo=githubactions&logoColor=white"/>
 </p>
+
+> ⚠️ **This app is currently under active development.** Features may be incomplete, APIs may change, and bugs are expected. Use at your own risk. Contributions and feedback are welcome!
 
 ---
 
@@ -133,22 +136,90 @@ ServioRL connects to your home media server via **Tailscale** and gives you full
 
 ---
 
-## Setup
+## Requirements
 
-### Requirements
-- Flutter 3.x
-- Android device with **Tailscale** installed and connected to your server network
+| Requirement | Minimum |
+|---|---|
+| Android | **5.0 (API 21)** or higher |
+| Android recommended | 8.0 (API 26) or higher for best experience |
+| RAM | 2 GB |
+| Tailscale | Installed & connected on your Android device |
 
-### Install & Run
+---
+
+## Build APK
+
+### 1. Install Flutter
+
+Download Flutter SDK from [flutter.dev](https://flutter.dev/docs/get-started/install) and follow the install guide for your OS (Windows / macOS / Linux).
+
+Verify installation:
+```bash
+flutter doctor
+```
+Make sure there are no critical errors — Android toolchain must be ✅.
+
+### 2. Clone & install dependencies
 
 ```bash
 git clone https://github.com/bugsdroid/ServioRL.git
 cd ServioRL
 flutter pub get
-flutter run
 ```
 
-### Configure Services
+### 3. Build APK
+
+**Debug APK** (for quick testing, larger file size):
+```bash
+flutter build apk --debug
+```
+
+**Release APK** (optimized, smaller, recommended for daily use):
+```bash
+flutter build apk --release
+```
+
+**Split APK per architecture** (smallest file size, pick one for your device):
+```bash
+flutter build apk --split-per-abi --release
+```
+This generates 3 files — pick the right one for your phone:
+- `app-arm64-v8a-release.apk` → most modern Android phones (64-bit)
+- `app-armeabi-v7a-release.apk` → older 32-bit phones
+- `app-x86_64-release.apk` → emulators / Intel-based devices
+
+### 4. Find the APK
+
+After build, APK files are located at:
+```
+ServioRL/build/app/outputs/flutter-apk/
+```
+
+### 5. Install on your phone
+
+**Option A — via USB:**
+```bash
+# Enable USB Debugging on your phone first
+# Settings → Developer Options → USB Debugging → ON
+flutter install
+```
+
+**Option B — manual transfer:**
+1. Copy the `.apk` file to your phone (via USB, Google Drive, WhatsApp, etc.)
+2. On your phone: open the APK file
+3. If prompted, enable **"Install from unknown sources"** for your file manager
+4. Tap **Install**
+
+**Option C — via ADB:**
+```bash
+adb install build/app/outputs/flutter-apk/app-release.apk
+```
+
+> 💡 **Tip:** For daily use, the `--split-per-abi --release` build gives the smallest APK. Most modern phones use `arm64-v8a`.
+
+---
+
+## Service Setup
 
 Open the app → **Settings** → tap each service to expand and fill in:
 
