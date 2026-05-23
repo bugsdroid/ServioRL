@@ -14,10 +14,12 @@ Manage **Seerr, Sonarr, Radarr, Transmission & Bazarr** from one place, connecte
 | Downloads | Transmission | ✅ Done |
 | Requests | Seerr | ✅ Done |
 | Search | Seerr | ✅ Done |
+| Movies | Radarr | ✅ Done |
+| TV Series | Sonarr | ✅ Done |
+| Subtitles | Bazarr | ✅ Done |
 | Settings | All services | ✅ Done |
-| Movies | Radarr | 🔄 Next |
-| TV Series | Sonarr | 🔄 Next |
-| Subtitles | Bazarr | 🔄 Next |
+
+---
 
 ## Key features per screen
 
@@ -36,7 +38,7 @@ Manage **Seerr, Sonarr, Radarr, Transmission & Bazarr** from one place, connecte
 
 ### Requests (Seerr)
 - Tab: Seerr / Sonarr (TV) / Radarr (Movies)
-- Count cards: Pending / Approved / Available (tap to filter)
+- Count cards: Pending / Approved / Available — tap to filter
 - Request card: TMDB poster, title, year, type badge, requested by, time ago
 - Status badge: Pending (orange) / Approved (green) / Available (teal)
 
@@ -44,13 +46,40 @@ Manage **Seerr, Sonarr, Radarr, Transmission & Bazarr** from one place, connecte
 - Search bar with Movies / Series toggle
 - Popular search chips
 - Trending Movies + Trending Series horizontal poster grid
-- Search results list with Request button
+- Search results list with inline Request button
 - Detail bottom sheet: backdrop, overview, rating, Request action
+
+### Movies (Radarr)
+- 3-column poster grid with quality badge + Missing overlay
+- Filter: All / Downloaded / Missing / Monitored
+- Sort: Title / Year / Size / Rating
+- Movie detail: fanart header, meta, genres, overview
+- Auto Search + Interactive Search
+- Interactive Search screen: release list with quality, size, seeders, Grab button
+- Remove movie action
+
+### TV Series (Sonarr)
+- 3-column poster grid with episode progress bar + ON AIR badge
+- Filter: All / Airing / Ended / Missing / Monitored
+- Sort: Title / Year / Episodes / Network
+- Series detail: fanart header, episode progress, seasons list
+- Season tile: expandable episode list with per-episode interactive search
+- Episode interactive search: release list with Grab button
+
+### Subtitles (Bazarr)
+- Missing subtitles list (movies + episodes combined)
+- Filter: All / Movies / Episodes
+- Auto Search per item
+- Manual Search: language picker → subtitle results
+- Subtitle result card: release name, match score, provider, HI badge
+- One-tap Download
 
 ### Settings
 - Expandable service tiles: Seerr / Sonarr / Radarr / Transmission / Bazarr
 - Connected / Setup badge per service
 - General: Appearance, Notifications, About
+
+---
 
 ## Tech stack
 
@@ -61,10 +90,12 @@ Manage **Seerr, Sonarr, Radarr, Transmission & Bazarr** from one place, connecte
 - **SharedPreferences** — config persistence
 - **cached_network_image** — TMDB poster caching
 
+---
+
 ## Setup
 
 1. Clone repo & run `flutter pub get`
-2. Open app → Settings (gear icon)
+2. Open app → Settings
 3. Enter Tailscale IP + port for each service:
 
 | Service | Default port |
@@ -80,6 +111,8 @@ Manage **Seerr, Sonarr, Radarr, Transmission & Bazarr** from one place, connecte
 
 All services accessed directly via Tailscale IP — no reverse proxy needed.
 
+---
+
 ## Project structure
 
 ```
@@ -92,36 +125,17 @@ lib/
 │   └── theme/           # Dark theme + AppColors
 └── features/
     ├── home/            # Dashboard screen
-    ├── downloads/       # Transmission torrent manager
-    │   ├── torrent_model.dart
-    │   ├── torrent_provider.dart
-    │   └── downloads_screen.dart
-    ├── requests/        # Seerr request manager
-    │   ├── request_model.dart
-    │   ├── requests_provider.dart
-    │   └── requests_screen.dart
-    ├── search/          # Seerr search + trending
-    │   ├── search_model.dart
-    │   ├── search_provider.dart
-    │   └── search_screen.dart
+    ├── downloads/       # Transmission — torrent_model, torrent_provider, downloads_screen
+    ├── requests/        # Seerr — request_model, requests_provider, requests_screen
+    ├── search/          # Seerr — search_model, search_provider, search_screen
+    ├── movies/          # Radarr — movie_model, movies_provider, movies_screen
+    ├── tv/              # Sonarr — tv_model, tv_provider, tv_screen
+    ├── subtitles/       # Bazarr — subtitle_model, subtitles_provider, subtitles_screen
     ├── settings/        # Config screen
     └── widgets/         # Shared widgets (ServioRL logo)
 ```
 
-## Development status
-
-- [x] Project scaffold & routing
-- [x] Dark theme (background #0F1117, accent teal #00D4AA)
-- [x] ServioRL logo widget
-- [x] Bottom nav: Home / Downloads / Requests / Search / Settings
-- [x] Home screen — dashboard
-- [x] Downloads screen — Transmission full UI
-- [x] Requests screen — Seerr full UI
-- [x] Search screen — Seerr full UI
-- [x] Settings screen — all 5 services
-- [ ] Movies screen — Radarr (library + interactive search)
-- [ ] TV screen — Sonarr (library + per-episode search)
-- [ ] Subtitles screen — Bazarr (manual search & select)
+---
 
 ## Build & run
 
