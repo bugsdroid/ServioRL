@@ -1,143 +1,145 @@
-# ServioRL
+<p align="center">
+  <img src="image_assets/logo_header.png" alt="ServioRL" width="600"/>
+</p>
 
-Personal media server manager — Flutter app for Android.
+<p align="center">
+  <strong>Personal Media Server Manager for Android</strong><br/>
+  Manage your entire media stack from one place — via Tailscale
+</p>
 
-Manage **Seerr, Sonarr, Radarr, Transmission & Bazarr** from one place, connected via Tailscale.
+<p align="center">
+  <img src="https://img.shields.io/badge/Flutter-3.x-blue?logo=flutter&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Platform-Android-green?logo=android&logoColor=white"/>
+  <img src="https://img.shields.io/badge/License-MIT-teal"/>
+  <img src="https://img.shields.io/badge/Version-0.1.0-orange"/>
+</p>
+
+---
+
+## Overview
+
+<p align="center">
+  <img src="image_assets/UI.png" alt="ServioRL UI Overview" width="900"/>
+</p>
+
+ServioRL connects to your home media server via **Tailscale** and gives you full control over:
+
+| Service | What you can do |
+|---|---|
+| 🔍 **Seerr** | Search & request movies / series |
+| 🎬 **Radarr** | Browse library, interactive search, grab releases |
+| 📺 **Sonarr** | Browse series, per-episode search, grab releases |
+| ⬇️ **Transmission** | Monitor torrents, stop / start / remove |
+| 💬 **Bazarr** | Find & download missing subtitles |
+
+---
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="image_assets/UI_1.png" width="180"/><br/>
+      <sub><b>Home Dashboard</b></sub>
+    </td>
+    <td align="center">
+      <img src="image_assets/UI_2.png" width="180"/><br/>
+      <sub><b>Downloads</b></sub>
+    </td>
+    <td align="center">
+      <img src="image_assets/UI_3.png" width="180"/><br/>
+      <sub><b>Requests</b></sub>
+    </td>
+    <td align="center">
+      <img src="image_assets/UI_4.png" width="180"/><br/>
+      <sub><b>Search</b></sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="image_assets/UI_5.png" width="180"/><br/>
+      <sub><b>Movies (Radarr)</b></sub>
+    </td>
+    <td align="center">
+      <img src="image_assets/UI_6.png" width="180"/><br/>
+      <sub><b>TV Series (Sonarr)</b></sub>
+    </td>
+    <td align="center">
+      <img src="image_assets/UI_7.png" width="180"/><br/>
+      <sub><b>Subtitles (Bazarr)</b></sub>
+    </td>
+    <td align="center">
+      <img src="image_assets/UI_8.png" width="180"/><br/>
+      <sub><b>Settings</b></sub>
+    </td>
+  </tr>
+</table>
 
 ---
 
 ## Features
 
-| Screen | Service | Status |
-|---|---|---|
-| Home | Dashboard | ✅ Done |
-| Downloads | Transmission | ✅ Done |
-| Requests | Seerr | ✅ Done |
-| Search | Seerr | ✅ Done |
-| Movies | Radarr | ✅ Done |
-| TV Series | Sonarr | ✅ Done |
-| Subtitles | Bazarr | ✅ Done |
-| Settings | All services | ✅ Done |
-
----
-
-## Key features per screen
-
-### Home
-- Service status cards (Seerr / Sonarr / Radarr / Transmission)
+### 🏠 Home Dashboard
+- Service status cards with online indicator
 - Recent activity feed
-- Download overview (Downloading / Seeding / Paused counts)
-- Storage bar
+- Download overview — Downloading / Seeding / Paused
+- Storage usage bar
 
-### Downloads (Transmission)
-- Tab filter: Downloading / Seeding / Paused
-- Torrent card: name, teal progress bar, speed ↓↑, size, ETA
-- Stalled badge (red) when peers = 0
-- Pause / Play / Remove actions
-- Remove dialog with "Delete files too" option
+### ⬇️ Downloads — Transmission
+- Tab filter: **Downloading / Seeding / Paused**
+- Progress bar with speed ↓↑, size, ETA
+- **Stalled** badge (red) when peers = 0
+- Pause / Play / Remove with "Delete files" option
 
-### Requests (Seerr)
-- Tab: Seerr / Sonarr (TV) / Radarr (Movies)
+### 📋 Requests — Seerr
+- Tab filter: **Seerr / Sonarr (TV) / Radarr (Movies)**
 - Count cards: Pending / Approved / Available — tap to filter
-- Request card: TMDB poster, title, year, type badge, requested by, time ago
-- Status badge: Pending (orange) / Approved (green) / Available (teal)
+- TMDB poster, title, year, requested by, time ago
+- Status badge per request
 
-### Search (Seerr)
-- Search bar with Movies / Series toggle
+### 🔍 Search — Seerr
+- Search bar with **Movies / Series** toggle
 - Popular search chips
-- Trending Movies + Trending Series horizontal poster grid
-- Search results list with inline Request button
-- Detail bottom sheet: backdrop, overview, rating, Request action
+- Trending Movies + Trending Series grid
+- Inline **Request** button
+- Detail bottom sheet with backdrop, overview, rating
 
-### Movies (Radarr)
+### 🎬 Movies — Radarr
 - 3-column poster grid with quality badge + Missing overlay
 - Filter: All / Downloaded / Missing / Monitored
 - Sort: Title / Year / Size / Rating
-- Movie detail: fanart header, meta, genres, overview
-- Auto Search + Interactive Search
-- Interactive Search screen: release list with quality, size, seeders, Grab button
-- Remove movie action
+- Movie detail: fanart header, genres, overview
+- **Auto Search** + **Interactive Search**
+- Interactive Search: quality, size, seeders — one-tap **Grab**
 
-### TV Series (Sonarr)
-- 3-column poster grid with episode progress bar + ON AIR badge
+### 📺 TV Series — Sonarr
+- 3-column poster grid with episode progress bar + **ON AIR** badge
 - Filter: All / Airing / Ended / Missing / Monitored
-- Sort: Title / Year / Episodes / Network
-- Series detail: fanart header, episode progress, seasons list
-- Season tile: expandable episode list with per-episode interactive search
-- Episode interactive search: release list with Grab button
+- Series detail with expandable seasons
+- Per-episode **Interactive Search** with Grab button
 
-### Subtitles (Bazarr)
-- Missing subtitles list (movies + episodes combined)
+### 💬 Subtitles — Bazarr
+- Missing subtitles list (movies + episodes)
 - Filter: All / Movies / Episodes
-- Auto Search per item
-- Manual Search: language picker → subtitle results
-- Subtitle result card: release name, match score, provider, HI badge
-- One-tap Download
+- **Auto Search** per item
+- **Manual Search**: language picker → subtitle results
+- Score badge, provider, HI flag — one-tap **Download**
 
-### Settings
-- Expandable service tiles: Seerr / Sonarr / Radarr / Transmission / Bazarr
-- Connected / Setup badge per service
+### ⚙️ Settings
+- Expandable service tiles — Connected / Setup badge
+- Seerr / Sonarr / Radarr / Transmission / Bazarr
 - General: Appearance, Notifications, About
-
----
-
-## Tech stack
-
-- **Flutter** (Dart) — Android
-- **Riverpod** — state management
-- **Dio** — HTTP client
-- **go_router** — navigation
-- **SharedPreferences** — config persistence
-- **cached_network_image** — TMDB poster caching
 
 ---
 
 ## Setup
 
-1. Clone repo & run `flutter pub get`
-2. Open app → Settings
-3. Enter Tailscale IP + port for each service:
+### Requirements
+- Flutter 3.x
+- Android device with **Tailscale** installed and connected to your server network
 
-| Service | Default port |
-|---|---|
-| Seerr | 5055 |
-| Sonarr | 8989 |
-| Radarr | 7878 |
-| Transmission | 9091 |
-| Bazarr | 6767 |
-
-4. Enter API keys (found in each service Settings → API Key)
-5. Transmission: username & password (optional, if auth enabled)
-
-All services accessed directly via Tailscale IP — no reverse proxy needed.
-
----
-
-## Project structure
-
-```
-lib/
-├── main.dart
-├── core/
-│   ├── config/          # AppConfig model + Riverpod provider
-│   ├── network/         # Dio clients + Transmission RPC client
-│   ├── router/          # go_router setup
-│   └── theme/           # Dark theme + AppColors
-└── features/
-    ├── home/            # Dashboard screen
-    ├── downloads/       # Transmission — torrent_model, torrent_provider, downloads_screen
-    ├── requests/        # Seerr — request_model, requests_provider, requests_screen
-    ├── search/          # Seerr — search_model, search_provider, search_screen
-    ├── movies/          # Radarr — movie_model, movies_provider, movies_screen
-    ├── tv/              # Sonarr — tv_model, tv_provider, tv_screen
-    ├── subtitles/       # Bazarr — subtitle_model, subtitles_provider, subtitles_screen
-    ├── settings/        # Config screen
-    └── widgets/         # Shared widgets (ServioRL logo)
-```
-
----
-
-## Build & run
+### Install & Run
 
 ```bash
 git clone https://github.com/bugsdroid/ServioRL.git
@@ -145,3 +147,66 @@ cd ServioRL
 flutter pub get
 flutter run
 ```
+
+### Configure Services
+
+Open the app → **Settings** → tap each service to expand and fill in:
+
+| Service | Default Port | Auth |
+|---|---|---|
+| Seerr | 5055 | API Key |
+| Sonarr | 8989 | API Key |
+| Radarr | 7878 | API Key |
+| Transmission | 9091 | Username + Password (optional) |
+| Bazarr | 6767 | API Key |
+
+> All services are accessed directly via **Tailscale IP** — no reverse proxy or port forwarding needed.
+
+---
+
+## Tech Stack
+
+| Package | Purpose |
+|---|---|
+| [flutter_riverpod](https://pub.dev/packages/flutter_riverpod) | State management |
+| [dio](https://pub.dev/packages/dio) | HTTP client |
+| [go_router](https://pub.dev/packages/go_router) | Navigation |
+| [shared_preferences](https://pub.dev/packages/shared_preferences) | Config persistence |
+| [cached_network_image](https://pub.dev/packages/cached_network_image) | TMDB poster caching |
+
+---
+
+## Project Structure
+
+```
+lib/
+├── main.dart
+├── core/
+│   ├── config/        # AppConfig + Riverpod provider
+│   ├── network/       # Dio clients + Transmission RPC client
+│   ├── router/        # go_router setup
+│   └── theme/         # Dark theme + AppColors
+└── features/
+    ├── home/          # Dashboard
+    ├── downloads/     # Transmission
+    ├── requests/      # Seerr requests
+    ├── search/        # Seerr search & trending
+    ├── movies/        # Radarr
+    ├── tv/            # Sonarr
+    ├── subtitles/     # Bazarr
+    ├── settings/      # Config screen
+    └── widgets/       # Shared widgets (logo)
+```
+
+---
+
+## License
+
+MIT — free to use and modify for personal use.
+
+<p align="center">
+  <br/>
+  <img src="image_assets/logo_footer.png" alt="ServioRL" width="120"/>
+  <br/>
+  <sub>Built for personal media servers · Powered by Flutter</sub>
+</p>
