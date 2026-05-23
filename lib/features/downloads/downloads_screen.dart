@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/theme/app_theme.dart';
 import 'torrent_model.dart';
 import 'torrent_provider.dart';
 
@@ -11,26 +12,66 @@ class DownloadsScreen extends ConsumerWidget {
     final state = ref.watch(torrentProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Downloads'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.read(torrentProvider.notifier).refresh(),
-            tooltip: 'Refresh',
+      backgroundColor: AppColors.background,
+      body: NestedScrollView(
+        headerSliverBuilder: (context, _) => [
+          SliverAppBar(
+            pinned: true,
+            backgroundColor: AppColors.background,
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Transmission',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    )),
+                state.whenOrNull(
+                  data: (list) {
+                    final dl   = list.where((t) => t.status.isDownloading).length;
+                    final seed = list.where((t) => t.status.isSeeding).length;
+                    return Text(
+                      '$dl downloading • $seed seeding',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    );
+                  },
+                ) ?? const SizedBox.shrink(),
+              ],
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.search, size: 20),
+                onPressed: () {},
+              ),
+              IconButton(
+                icon: const Icon(Icons.filter_list_rounded, size: 20),
+                onPressed: () {},
+              ),
+              IconButton(
+                icon: const Icon(Icons.more_vert, size: 20),
+                onPressed: () {},
+              ),
+            ],
           ),
         ],
-      ),
-      body: state.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _ErrorView(error: e.toString(), ref: ref),
-        data: (torrents) => _TorrentList(torrents: torrents),
+        body: state.when(
+          loading: () => const Center(
+            child: CircularProgressIndicator(color: AppColors.teal),
+          ),
+          error: (e, _) => _ErrorView(error: e.toString(), ref: ref),
+          data: (torrents) => _TorrentList(torrents: torrents),
+        ),
       ),
     );
   }
 }
 
-// ── Error view ───────────────────────────────────────────────────────────────
+// ── Error view ────────────────────────────────────────────────────────────────
 
 class _ErrorView extends StatelessWidget {
   final String error;
@@ -41,27 +82,39 @@ class _ErrorView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.wifi_off_rounded,
-                size: 56, color: Theme.of(context).colorScheme.error),
-            const SizedBox(height: 16),
-            Text('Tidak bisa terhubung ke Transmission',
-                style: Theme.of(context).textTheme.titleMedium,
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.card,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Icon(Icons.wifi_off_rounded,
+                  size: 40, color: AppColors.error),
+            ),
+            const SizedBox(height: 20),
+            const Text('Cannot connect to Transmission',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
                 textAlign: TextAlign.center),
             const SizedBox(height: 8),
             Text(error,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: Theme.of(context).colorScheme.error),
-                textAlign: TextAlign.center),
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis),
             const SizedBox(height: 24),
             FilledButton.icon(
-              icon: const Icon(Icons.refresh),
-              label: const Text('Coba lagi'),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Retry'),
               onPressed: () => ref.read(torrentProvider.notifier).refresh(),
             ),
           ],
@@ -71,7 +124,7 @@ class _ErrorView extends StatelessWidget {
   }
 }
 
-// ── Torrent list ─────────────────────────────────────────────────────────────
+// ── Torrent list ──────────────────────────────────────────────────────────────
 
 class _TorrentList extends StatefulWidget {
   final List<Torrent> torrents;
@@ -81,269 +134,358 @@ class _TorrentList extends StatefulWidget {
   State<_TorrentList> createState() => _TorrentListState();
 }
 
-class _TorrentListState extends State<_TorrentList> {
-  // Filter: all / downloading / seeding / stopped / stalled
-  _Filter _filter = _Filter.all;
+class _TorrentListState extends State<_TorrentList>
+    with SingleTickerProviderStateMixin {
+  late TabController _tab;
 
-  List<Torrent> get _filtered => widget.torrents.where((t) {
-        return switch (_filter) {
-          _Filter.all        => true,
-          _Filter.downloading => t.status.isDownloading && !t.isStalled,
-          _Filter.seeding    => t.status.isSeeding,
-          _Filter.stopped    => t.status.isStopped,
-          _Filter.stalled    => t.isStalled,
-        };
-      }).toList();
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    super.dispose();
+  }
+
+  List<Torrent> _filtered(int tabIdx) {
+    return switch (tabIdx) {
+      0 => widget.torrents.where((t) => t.status.isDownloading).toList(),
+      1 => widget.torrents.where((t) => t.status.isSeeding).toList(),
+      2 => widget.torrents.where((t) => t.status.isStopped).toList(),
+      _ => widget.torrents,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filtered;
-
     return Column(
       children: [
-        // ── Filter chips ──────────────────────────────────────────────────
-        _FilterBar(
-          current: _filter,
-          counts: {
-            _Filter.all:         widget.torrents.length,
-            _Filter.downloading: widget.torrents.where((t) => t.status.isDownloading && !t.isStalled).length,
-            _Filter.seeding:     widget.torrents.where((t) => t.status.isSeeding).length,
-            _Filter.stopped:     widget.torrents.where((t) => t.status.isStopped).length,
-            _Filter.stalled:     widget.torrents.where((t) => t.isStalled).length,
-          },
-          onChanged: (f) => setState(() => _filter = f),
+        // ── Tab bar (A / Downloading / Seeding / Paused) ─────────────
+        Container(
+          color: AppColors.background,
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: Row(
+            children: [
+              // "A" all badge (persis mockup — lingkaran teal)
+              GestureDetector(
+                onTap: () {
+                  _tab.animateTo(0);
+                  setState(() {});
+                },
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.teal,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Center(
+                    child: Text('A',
+                        style: TextStyle(
+                          color: AppColors.background,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        )),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: TabBar(
+                  controller: _tab,
+                  onTap: (_) => setState(() {}),
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  dividerColor: Colors.transparent,
+                  indicator: BoxDecoration(
+                    color: AppColors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  labelColor: AppColors.textPrimary,
+                  unselectedLabelColor: AppColors.textSecondary,
+                  labelStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  unselectedLabelStyle: const TextStyle(fontSize: 13),
+                  tabs: const [
+                    Tab(text: 'Downloading'),
+                    Tab(text: 'Seeding'),
+                    Tab(text: 'Paused'),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
 
-        // ── List ─────────────────────────────────────────────────────────
-        if (filtered.isEmpty)
-          const Expanded(
-            child: Center(child: Text('Tidak ada torrent')),
-          )
-        else
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.only(bottom: 16),
-              itemCount: filtered.length,
-              itemBuilder: (ctx, i) => _TorrentCard(torrent: filtered[i]),
-            ),
+        const SizedBox(height: 4),
+
+        // ── List ──────────────────────────────────────────────────────
+        Expanded(
+          child: TabBarView(
+            controller: _tab,
+            children: List.generate(3, (i) {
+              final list = _filtered(i);
+              if (list.isEmpty) {
+                return Center(
+                  child: Text(
+                    'No torrents',
+                    style: const TextStyle(color: AppColors.textSecondary),
+                  ),
+                );
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                itemCount: list.length,
+                itemBuilder: (ctx, idx) => _TorrentCard(torrent: list[idx]),
+              );
+            }),
           ),
+        ),
       ],
     );
   }
 }
 
-enum _Filter { all, downloading, seeding, stopped, stalled }
-
-// ── Filter bar ───────────────────────────────────────────────────────────────
-
-class _FilterBar extends StatelessWidget {
-  final _Filter current;
-  final Map<_Filter, int> counts;
-  final ValueChanged<_Filter> onChanged;
-
-  const _FilterBar({
-    required this.current,
-    required this.counts,
-    required this.onChanged,
-  });
-
-  static const _labels = {
-    _Filter.all:         'All',
-    _Filter.downloading: 'DL',
-    _Filter.seeding:     'Seed',
-    _Filter.stopped:     'Stop',
-    _Filter.stalled:     'Stalled',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        children: _Filter.values.map((f) {
-          final count = counts[f] ?? 0;
-          final selected = f == current;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              label: Text('${_labels[f]} $count'),
-              selected: selected,
-              onSelected: (_) => onChanged(f),
-              // Highlight stalled in amber
-              selectedColor: f == _Filter.stalled
-                  ? Theme.of(context).colorScheme.errorContainer
-                  : null,
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
-
-// ── Torrent card ─────────────────────────────────────────────────────────────
+// ── Torrent card ──────────────────────────────────────────────────────────────
 
 class _TorrentCard extends ConsumerWidget {
   final Torrent torrent;
   const _TorrentCard({required this.torrent});
 
-  String _formatBytes(int bytes) {
+  String _speed(int bps) {
+    if (bps <= 0) return '0 B/s';
+    if (bps < 1024 * 1024) return '${(bps / 1024).toStringAsFixed(1)} KB/s';
+    return '${(bps / 1024 / 1024).toStringAsFixed(1)} MB/s';
+  }
+
+  String _size(int bytes) {
     if (bytes <= 0) return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    var v = bytes.toDouble();
-    var i = 0;
-    while (v >= 1024 && i < units.length - 1) {
-      v /= 1024;
-      i++;
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
     }
-    return '${v.toStringAsFixed(1)} ${units[i]}';
+    return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(2)} GB';
   }
 
-  String _formatEta(int eta) {
-    if (eta < 0) return '∞';
-    if (eta < 60) return '${eta}s';
-    if (eta < 3600) return '${eta ~/ 60}m';
-    return '${eta ~/ 3600}h ${(eta % 3600) ~/ 60}m';
+  String _eta(int secs) {
+    if (secs < 0) return '∞';
+    if (secs < 60) return '${secs}s';
+    if (secs < 3600) return '${secs ~/ 60}m left';
+    return '${secs ~/ 3600}h ${(secs % 3600) ~/ 60}m left';
   }
 
-  Color _progressColor(BuildContext context, Torrent t) {
-    if (t.isStalled) return Theme.of(context).colorScheme.error;
-    if (t.status.isSeeding) return Colors.green;
-    if (t.status.isStopped) return Theme.of(context).colorScheme.outline;
-    return Theme.of(context).colorScheme.primary;
+  Color _barColor(Torrent t) {
+    if (t.isStalled) return AppColors.error;
+    if (t.status.isSeeding) return AppColors.success;
+    if (t.status.isStopped) return AppColors.textDisabled;
+    return AppColors.teal;
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = torrent;
-    final pct = (t.percentDone * 100).toStringAsFixed(1);
-    final color = _progressColor(context, t);
+    final pct = t.percentDone;
+    final barColor = _barColor(t);
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 8, 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Name + status badge ────────────────────────────────────
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    t.name,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 10),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border, width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Name + action button ─────────────────────────────────────
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  t.name,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    height: 1.3,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(width: 8),
-                _StatusBadge(torrent: t),
-              ],
-            ),
-
-            const SizedBox(height: 8),
-
-            // ── Progress bar ───────────────────────────────────────────
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: t.percentDone,
-                minHeight: 6,
-                color: color,
-                backgroundColor: color.withOpacity(0.15),
               ),
-            ),
-
-            const SizedBox(height: 6),
-
-            // ── Stats row ──────────────────────────────────────────────
-            Row(
-              children: [
-                Text('$pct%',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(width: 8),
-                if (t.status.isDownloading) ...[
-                  Icon(Icons.arrow_downward, size: 12,
-                      color: Theme.of(context).colorScheme.primary),
-                  Text(_formatBytes(t.rateDownload) + '/s',
-                      style: Theme.of(context).textTheme.bodySmall),
-                  const SizedBox(width: 6),
-                ],
-                if (t.rateUpload > 0) ...[
-                  Icon(Icons.arrow_upward, size: 12, color: Colors.green),
-                  Text(_formatBytes(t.rateUpload) + '/s',
-                      style: Theme.of(context).textTheme.bodySmall),
-                  const SizedBox(width: 6),
-                ],
-                if (t.status.isDownloading && t.eta > 0) ...[
-                  Icon(Icons.schedule, size: 12,
-                      color: Theme.of(context).colorScheme.outline),
-                  Text(_formatEta(t.eta),
-                      style: Theme.of(context).textTheme.bodySmall),
-                ],
-                const Spacer(),
-                Text(
-                  '${t.peersConnected} peers',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: t.isStalled
-                            ? Theme.of(context).colorScheme.error
-                            : Theme.of(context).colorScheme.outline,
-                      ),
-                ),
-              ],
-            ),
-
-            // ── Error string ───────────────────────────────────────────
-            if (t.error != 0 && t.errorString.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(t.errorString,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
+              const SizedBox(width: 8),
+              // Stop / Play / Seeding icon button
+              _ActionButton(torrent: t),
             ],
+          ),
 
-            // ── Action buttons ─────────────────────────────────────────
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                // Start / Stop toggle
-                if (t.status.isStopped)
-                  IconButton(
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    tooltip: 'Start',
-                    onPressed: () =>
-                        ref.read(torrentProvider.notifier).start(t.id),
-                  )
-                else
-                  IconButton(
-                    icon: const Icon(Icons.pause_rounded),
-                    tooltip: 'Stop',
-                    onPressed: () =>
-                        ref.read(torrentProvider.notifier).stop(t.id),
-                  ),
+          const SizedBox(height: 10),
 
-                // Remove
-                IconButton(
-                  icon: Icon(Icons.delete_outline_rounded,
-                      color: Theme.of(context).colorScheme.error),
-                  tooltip: 'Remove',
-                  onPressed: () => _confirmRemove(context, ref, t),
-                ),
-              ],
+          // ── Progress bar ─────────────────────────────────────────────
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: pct,
+              minHeight: 4,
+              backgroundColor: AppColors.border,
+              valueColor: AlwaysStoppedAnimation<Color>(barColor),
             ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // ── Stats row ────────────────────────────────────────────────
+          Row(
+            children: [
+              // Pct
+              Text(
+                '${(pct * 100).toStringAsFixed(1)}%',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 10),
+
+              // Download speed
+              if (t.status.isDownloading && t.rateDownload > 0) ...[
+                const Icon(Icons.arrow_downward_rounded,
+                    size: 11, color: AppColors.teal),
+                const SizedBox(width: 2),
+                Text(_speed(t.rateDownload),
+                    style: const TextStyle(
+                        color: AppColors.teal, fontSize: 11)),
+                const SizedBox(width: 8),
+              ],
+
+              // Upload speed
+              if (t.rateUpload > 0) ...[
+                const Icon(Icons.arrow_upward_rounded,
+                    size: 11, color: AppColors.textSecondary),
+                const SizedBox(width: 2),
+                Text(_speed(t.rateUpload),
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 11)),
+                const SizedBox(width: 8),
+              ],
+
+              // Size
+              Text(_size(t.totalSize),
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 11)),
+
+              const Spacer(),
+
+              // ETA or ratio or stalled
+              if (t.isStalled)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text('Stalled',
+                      style: TextStyle(
+                          color: AppColors.error,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600)),
+                )
+              else if (t.status.isSeeding)
+                Text(
+                  'Ratio ${(t.rateUpload / (t.totalSize == 0 ? 1 : t.totalSize)).toStringAsFixed(2)}',
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 11),
+                )
+              else if (t.eta > 0)
+                Row(
+                  children: [
+                    const Icon(Icons.schedule_rounded,
+                        size: 11, color: AppColors.textDisabled),
+                    const SizedBox(width: 2),
+                    Text(_eta(t.eta),
+                        style: const TextStyle(
+                            color: AppColors.textSecondary, fontSize: 11)),
+                  ],
+                ),
+            ],
+          ),
+
+          // ── Error string ─────────────────────────────────────────────
+          if (t.error != 0 && t.errorString.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(t.errorString,
+                style: const TextStyle(
+                    color: AppColors.error, fontSize: 11),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Action button (play / pause / seeding indicator) ─────────────────────────
+
+class _ActionButton extends ConsumerWidget {
+  final Torrent torrent;
+  const _ActionButton({required this.torrent});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = torrent;
+    final notifier = ref.read(torrentProvider.notifier);
+
+    // Seeding — show static seed icon (no tap needed usually)
+    if (t.status.isSeeding) {
+      return Container(
+        width: 32, height: 32,
+        decoration: BoxDecoration(
+          color: AppColors.success.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(8),
         ),
+        child: const Icon(Icons.upload_rounded,
+            size: 16, color: AppColors.success),
+      );
+    }
+
+    // Stopped — show play
+    if (t.status.isStopped) {
+      return GestureDetector(
+        onTap: () => notifier.start(t.id),
+        child: Container(
+          width: 32, height: 32,
+          decoration: BoxDecoration(
+            color: AppColors.teal.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(Icons.play_arrow_rounded,
+              size: 18, color: AppColors.teal),
+        ),
+      );
+    }
+
+    // Downloading — show pause + long press for remove
+    return GestureDetector(
+      onTap: () => notifier.stop(t.id),
+      onLongPress: () => _confirmRemove(context, ref, t),
+      child: Container(
+        width: 32, height: 32,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Icon(Icons.pause_rounded,
+            size: 18, color: AppColors.textPrimary),
       ),
     );
   }
@@ -351,24 +493,30 @@ class _TorrentCard extends ConsumerWidget {
   Future<void> _confirmRemove(
       BuildContext context, WidgetRef ref, Torrent t) async {
     bool deleteData = false;
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          title: const Text('Hapus Torrent?'),
+          title: const Text('Remove Torrent?'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(t.name,
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  )),
               const SizedBox(height: 16),
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 value: deleteData,
+                activeColor: AppColors.teal,
                 onChanged: (v) => setState(() => deleteData = v ?? false),
-                title: const Text('Hapus file juga'),
+                title: const Text('Delete files too',
+                    style: TextStyle(
+                        color: AppColors.textPrimary, fontSize: 13)),
                 controlAffinity: ListTileControlAffinity.leading,
               ),
             ],
@@ -376,57 +524,22 @@ class _TorrentCard extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Batal'),
+              child: const Text('Cancel'),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ),
+                  backgroundColor: AppColors.error),
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Hapus'),
+              child: const Text('Remove'),
             ),
           ],
         ),
       ),
     );
-
     if (confirmed == true && context.mounted) {
       await ref
           .read(torrentProvider.notifier)
           .remove(t.id, deleteData: deleteData);
     }
-  }
-}
-
-// ── Status badge ─────────────────────────────────────────────────────────────
-
-class _StatusBadge extends StatelessWidget {
-  final Torrent torrent;
-  const _StatusBadge({required this.torrent});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = torrent;
-    final (label, color) = t.isStalled
-        ? ('Stalled', Theme.of(context).colorScheme.errorContainer)
-        : t.status.isDownloading
-            ? ('DL', Theme.of(context).colorScheme.primaryContainer)
-            : t.status.isSeeding
-                ? ('Seed', Colors.green.shade100)
-                : t.status.isStopped
-                    ? ('Stop', Theme.of(context).colorScheme.surfaceVariant)
-                    : (t.status.label, Theme.of(context).colorScheme.surfaceVariant);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              )),
-    );
   }
 }
