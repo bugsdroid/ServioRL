@@ -277,7 +277,7 @@ MIT — free to use and modify for personal use.
 
 <p align="center">
   <br/>
-  <img src="image_assets/logo_footer.png" alt="ServioRL" width="120"/>
-  <br/>
+  <img src="image_assets/logo_footer.png" alt="ServioRL" width="600"/>
+  <br/><br/>
   <sub>Built for personal media servers · Powered by Flutter</sub>
 </p>
