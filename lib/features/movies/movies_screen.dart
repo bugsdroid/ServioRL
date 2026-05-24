@@ -51,7 +51,6 @@ class MoviesScreen extends ConsumerWidget {
               preferredSize: const Size.fromHeight(100),
               child: Column(
                 children: [
-                  // Search bar
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                     child: TextField(
@@ -66,7 +65,6 @@ class MoviesScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  // Filter chips
                   _FilterBar(),
                 ],
               ),
@@ -183,26 +181,21 @@ class _MoviePoster extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Poster
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Image
                   m.posterUrl.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: m.posterUrl,
                           fit: BoxFit.cover,
-                          placeholder: (_, __) => Container(
-                              color: AppColors.surfaceVariant),
-                          errorWidget: (_, __, ___) =>
-                              _posterFallback(m),
+                          placeholder: (_, __) =>
+                              Container(color: AppColors.surfaceVariant),
+                          errorWidget: (_, __, ___) => _posterFallback(m),
                         )
                       : _posterFallback(m),
-
-                  // Bottom gradient + quality badge
                   if (m.hasFile)
                     Positioned(
                       bottom: 0, left: 0, right: 0,
@@ -218,18 +211,14 @@ class _MoviePoster extends StatelessWidget {
                             ],
                           ),
                         ),
-                        child: Text(
-                          m.quality,
-                          style: const TextStyle(
-                            color: AppColors.teal,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                        child: Text(m.quality,
+                            style: const TextStyle(
+                              color: AppColors.teal,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            )),
                       ),
                     ),
-
-                  // Missing badge
                   if (!m.hasFile && m.monitored)
                     Positioned(
                       top: 5, right: 5,
@@ -379,8 +368,7 @@ class _ErrorView extends StatelessWidget {
               FilledButton.icon(
                 icon: const Icon(Icons.refresh, size: 16),
                 label: const Text('Retry'),
-                onPressed: () =>
-                    ref.read(moviesProvider.notifier).refresh(),
+                onPressed: () => ref.read(moviesProvider.notifier).refresh(),
               ),
             ],
           ),
@@ -410,16 +398,7 @@ class MovieDetailScreen extends ConsumerWidget {
             pinned: true,
             backgroundColor: AppColors.background,
             flexibleSpace: FlexibleSpaceBar(
-              background: m.fanartUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: m.fanartUrl,
-                      fit: BoxFit.cover,
-                      placeholder: (_, __) => Container(
-                          color: AppColors.surfaceVariant),
-                      errorWidget: (_, __, ___) =>
-                          Container(color: AppColors.surfaceVariant),
-                    )
-                  : Container(color: AppColors.surfaceVariant),
+              // fixed: removed duplicate background, now single Stack with gradient
               background: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -433,7 +412,7 @@ class MovieDetailScreen extends ConsumerWidget {
                               Container(color: AppColors.surfaceVariant),
                         )
                       : Container(color: AppColors.surfaceVariant),
-                  // Gradient overlay
+                  // Gradient overlay bottom
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -462,7 +441,6 @@ class MovieDetailScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                // Title
                 Text(m.title,
                     style: const TextStyle(
                       color: AppColors.textPrimary,
@@ -470,8 +448,6 @@ class MovieDetailScreen extends ConsumerWidget {
                       fontWeight: FontWeight.w700,
                     )),
                 const SizedBox(height: 4),
-
-                // Meta row
                 Wrap(
                   spacing: 8,
                   children: [
@@ -483,8 +459,6 @@ class MovieDetailScreen extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-
-                // File info
                 if (m.hasFile)
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -499,13 +473,11 @@ class MovieDetailScreen extends ConsumerWidget {
                         const Icon(Icons.check_circle_rounded,
                             color: AppColors.teal, size: 14),
                         const SizedBox(width: 6),
-                        Text(
-                          '${m.quality}  •  ${m.sizeStr}',
-                          style: const TextStyle(
-                              color: AppColors.teal,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600),
-                        ),
+                        Text('${m.quality}  •  ${m.sizeStr}',
+                            style: const TextStyle(
+                                color: AppColors.teal,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600)),
                       ],
                     ),
                   )
@@ -531,10 +503,7 @@ class MovieDetailScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
-
                 const SizedBox(height: 16),
-
-                // Action buttons
                 Row(
                   children: [
                     Expanded(
@@ -548,8 +517,8 @@ class MovieDetailScreen extends ConsumerWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: OutlinedButton.icon(
-                        icon: const Icon(
-                            Icons.manage_search_rounded, size: 16),
+                        icon: const Icon(Icons.manage_search_rounded,
+                            size: 16),
                         label: const Text('Auto Search'),
                         onPressed: () async {
                           await ref
@@ -567,10 +536,7 @@ class MovieDetailScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 20),
-
-                // Genres
                 if (m.genres.isNotEmpty) ...[
                   Wrap(
                     spacing: 6,
@@ -595,8 +561,6 @@ class MovieDetailScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                 ],
-
-                // Overview
                 if (m.overview.isNotEmpty) ...[
                   const Text('Overview',
                       style: TextStyle(
@@ -612,8 +576,6 @@ class MovieDetailScreen extends ConsumerWidget {
                         height: 1.6,
                       )),
                 ],
-
-                // Studio
                 if (m.studio.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Text('Studio: ${m.studio}',
@@ -629,16 +591,11 @@ class MovieDetailScreen extends ConsumerWidget {
   }
 
   Widget _meta(String text) => Text(text,
-      style: const TextStyle(
-          color: AppColors.textSecondary, fontSize: 13));
+      style: const TextStyle(color: AppColors.textSecondary, fontSize: 13));
 
-  void _openInteractiveSearch(
-      BuildContext context, WidgetRef ref, Movie m) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-          builder: (_) => InteractiveSearchScreen(movie: m)),
-    );
+  void _openInteractiveSearch(BuildContext context, WidgetRef ref, Movie m) {
+    Navigator.push(context,
+        MaterialPageRoute(builder: (_) => InteractiveSearchScreen(movie: m)));
   }
 
   void _showActions(BuildContext context, WidgetRef ref, Movie m) {
@@ -668,8 +625,7 @@ class _MovieActionsSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            leading: const Icon(Icons.search_rounded,
-                color: AppColors.teal),
+            leading: const Icon(Icons.search_rounded, color: AppColors.teal),
             title: const Text('Interactive Search',
                 style: TextStyle(color: AppColors.textPrimary)),
             onTap: () {
@@ -708,9 +664,7 @@ class _MovieActionsSheet extends StatelessWidget {
                 ),
               );
               if (confirm == true) {
-                await ref
-                    .read(movieRepositoryProvider)
-                    .deleteMovie(movie.id);
+                await ref.read(movieRepositoryProvider).deleteMovie(movie.id);
                 await ref.read(moviesProvider.notifier).refresh();
                 if (context.mounted) Navigator.pop(context);
               }
@@ -810,7 +764,10 @@ class _ReleaseCardState extends State<_ReleaseCard> {
       await widget.ref
           .read(movieRepositoryProvider)
           .grabRelease(widget.release.guid, 0);
-      setState(() { _loading = false; _grabbed = true; });
+      setState(() {
+        _loading = false;
+        _grabbed = true;
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Release grabbed!')),
@@ -820,7 +777,8 @@ class _ReleaseCardState extends State<_ReleaseCard> {
       setState(() => _loading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e'),
+          SnackBar(
+              content: Text('Failed: $e'),
               backgroundColor: AppColors.error),
         );
       }
@@ -847,7 +805,6 @@ class _ReleaseCardState extends State<_ReleaseCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title + grab button
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -878,7 +835,8 @@ class _ReleaseCardState extends State<_ReleaseCard> {
                     ),
                     child: _loading
                         ? const SizedBox(
-                            width: 14, height: 14,
+                            width: 14,
+                            height: 14,
                             child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 color: AppColors.background))
@@ -896,21 +854,14 @@ class _ReleaseCardState extends State<_ReleaseCard> {
                 ),
             ],
           ),
-
           const SizedBox(height: 8),
-
-          // Stats
           Wrap(
             spacing: 12,
             children: [
-              // Quality
-              _stat(Icons.high_quality_rounded, r.quality,
-                  AppColors.teal),
-              // Size
+              _stat(Icons.high_quality_rounded, r.quality, AppColors.teal),
               if (r.sizeStr.isNotEmpty)
                 _stat(Icons.storage_rounded, r.sizeStr,
                     AppColors.textSecondary),
-              // Seeders
               _stat(
                 Icons.arrow_upward_rounded,
                 '${r.seeders}',
@@ -920,21 +871,15 @@ class _ReleaseCardState extends State<_ReleaseCard> {
                         ? AppColors.warning
                         : AppColors.error,
               ),
-              // Age
               _stat(Icons.schedule_rounded, '${r.age}d',
                   AppColors.textSecondary),
-              // Indexer
-              _stat(Icons.source_rounded, r.indexer,
-                  AppColors.textDisabled),
+              _stat(Icons.source_rounded, r.indexer, AppColors.textDisabled),
             ],
           ),
-
-          // Rejections
           if (r.rejections.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(r.rejections.join(' • '),
-                style: const TextStyle(
-                    color: AppColors.error, fontSize: 10),
+                style: const TextStyle(color: AppColors.error, fontSize: 10),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis),
           ],
