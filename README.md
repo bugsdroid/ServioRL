@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="image_assets/logo_header.png" alt="ServioRL" width="900"/>
+  <img src="image_assets/servioRL_logo_transparant_rs.png" alt="ServioRL" width="900"/>
 </p>
 
 <p align="center">
