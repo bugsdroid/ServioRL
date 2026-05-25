@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/dio_client.dart';
 import 'search_model.dart';
@@ -10,9 +9,11 @@ class SearchRepository {
   SearchRepository(this.dio);
 
   Future<List<SearchResult>> search(String query, {bool isMovie = true}) async {
+    // Fix: encode query properly supaya spasi/simbol tidak break URL
+    final encoded = Uri.encodeQueryComponent(query);
     final endpoint = isMovie
-        ? '/api/v1/search?query=$query&mediaType=movie'
-        : '/api/v1/search?query=$query&mediaType=tv';
+        ? '/api/v1/search?query=$encoded&mediaType=movie'
+        : '/api/v1/search?query=$encoded&mediaType=tv';
     final res  = await dio.get(endpoint);
     final data = res.data as Map<String, dynamic>;
     final results = data['results'] as List<dynamic>? ?? [];
@@ -49,13 +50,9 @@ final searchRepositoryProvider = Provider<SearchRepository>((ref) {
 
 // ── Providers ─────────────────────────────────────────────────────────────────
 
-// Toggle movie / tv
 final searchIsMovieProvider = StateProvider<bool>((ref) => true);
+final searchQueryProvider   = StateProvider<String>((ref) => '');
 
-// Query string
-final searchQueryProvider = StateProvider<String>((ref) => '');
-
-// Search results
 final searchResultsProvider =
     FutureProvider.autoDispose<List<SearchResult>>((ref) async {
   final query   = ref.watch(searchQueryProvider);
@@ -65,13 +62,11 @@ final searchResultsProvider =
   return repo.search(query.trim(), isMovie: isMovie);
 });
 
-// Trending movies
 final trendingMoviesProvider =
     FutureProvider<List<SearchResult>>((ref) async {
   return ref.read(searchRepositoryProvider).getTrending(isMovie: true);
 });
 
-// Trending tv
 final trendingTvProvider =
     FutureProvider<List<SearchResult>>((ref) async {
   return ref.read(searchRepositoryProvider).getTrending(isMovie: false);
