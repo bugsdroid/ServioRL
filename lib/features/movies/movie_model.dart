@@ -28,16 +28,16 @@ class Movie {
   final String sortTitle;
   final int year;
   final String overview;
-  final String posterUrl;  // full URL dari Radarr
+  final String posterUrl;
   final String fanartUrl;
   final bool hasFile;
   final bool monitored;
   final MovieStatus status;
   final String studio;
-  final int runtime;         // minutes
+  final int runtime;
   final double ratings;
-  final String quality;      // e.g. "1080p"
-  final int sizeOnDisk;      // bytes
+  final String quality;
+  final int sizeOnDisk;
   final String imdbId;
   final int tmdbId;
   final List<String> genres;
@@ -64,59 +64,57 @@ class Movie {
   });
 
   factory Movie.fromJson(Map<String, dynamic> j, String baseUrl) {
-    // Poster & fanart — Radarr returns relative path, build full URL
-    String _img(String path) {
+    // Fix: _img() sekarang benar-benar dipakai untuk handle URL relatif vs absolut
+    String img(String path) {
       if (path.isEmpty) return '';
       if (path.startsWith('http')) return path;
+      // URL relatif dari Radarr — prefix dengan baseUrl
       return '$baseUrl$path';
     }
 
     final images = j['images'] as List<dynamic>? ?? [];
     String poster = '', fanart = '';
-    for (final img in images) {
-      final type = img['coverType'] as String? ?? '';
-      final url  = img['remoteUrl'] as String?
-          ?? img['url'] as String?
+    for (final image in images) {
+      final type = image['coverType'] as String? ?? '';
+      // Coba remoteUrl dulu (CDN), fallback ke url (lokal Radarr)
+      final url  = image['remoteUrl'] as String?
+          ?? image['url'] as String?
           ?? '';
-      if (type == 'poster' && poster.isEmpty) poster = url;
-      if (type == 'fanart' && fanart.isEmpty) fanart = url;
+      if (type == 'poster' && poster.isEmpty) poster = img(url);
+      if (type == 'fanart' && fanart.isEmpty) fanart = img(url);
     }
 
-    // Quality from movie file
     final file    = j['movieFile'] as Map<String, dynamic>?;
     final quality = file?['quality']?['quality']?['name'] as String? ?? '';
     final size    = file?['size'] as int? ?? 0;
 
-    // Ratings
     final ratingsMap = j['ratings'] as Map<String, dynamic>?;
     final imdb  = ratingsMap?['imdb']?['value'] as num? ?? 0;
     final tmdbR = ratingsMap?['tmdb']?['value'] as num? ?? 0;
     final rating = imdb > 0 ? imdb.toDouble() : tmdbR.toDouble();
 
-    // Genres
     final genres = (j['genres'] as List<dynamic>?)
             ?.map((g) => g.toString())
-            .toList() ??
-        [];
+            .toList() ?? [];
 
     return Movie(
-      id:         j['id']       as int? ?? 0,
-      title:      j['title']    as String? ?? 'Unknown',
+      id:         j['id']        as int?    ?? 0,
+      title:      j['title']     as String? ?? 'Unknown',
       sortTitle:  j['sortTitle'] as String? ?? '',
-      year:       j['year']     as int? ?? 0,
-      overview:   j['overview'] as String? ?? '',
+      year:       j['year']      as int?    ?? 0,
+      overview:   j['overview']  as String? ?? '',
       posterUrl:  poster,
       fanartUrl:  fanart,
-      hasFile:    j['hasFile']  as bool? ?? false,
-      monitored:  j['monitored'] as bool? ?? false,
+      hasFile:    j['hasFile']   as bool?   ?? false,
+      monitored:  j['monitored'] as bool?   ?? false,
       status:     MovieStatus.fromString(j['status'] as String? ?? ''),
-      studio:     j['studio']   as String? ?? '',
-      runtime:    j['runtime']  as int? ?? 0,
+      studio:     j['studio']    as String? ?? '',
+      runtime:    j['runtime']   as int?    ?? 0,
       ratings:    rating,
       quality:    quality,
       sizeOnDisk: size,
-      imdbId:     j['imdbId']   as String? ?? '',
-      tmdbId:     j['tmdbId']   as int? ?? 0,
+      imdbId:     j['imdbId']    as String? ?? '',
+      tmdbId:     j['tmdbId']    as int?    ?? 0,
       genres:     genres,
     );
   }
@@ -140,13 +138,15 @@ class Movie {
 class RadarrRelease {
   final String guid;
   final String title;
-  final int size;           // bytes
+  final int size;
   final int seeders;
   final int leechers;
   final String quality;
   final double qualityScore;
   final String indexer;
-  final int age;            // days
+  final String indexerFlags;
+  final int indexerId;       // Fix: simpan indexerId asli dari API
+  final int age;
   final bool rejected;
   final List<String> rejections;
 
@@ -159,6 +159,8 @@ class RadarrRelease {
     required this.quality,
     required this.qualityScore,
     required this.indexer,
+    required this.indexerFlags,
+    required this.indexerId,
     required this.age,
     required this.rejected,
     required this.rejections,
@@ -167,19 +169,21 @@ class RadarrRelease {
   factory RadarrRelease.fromJson(Map<String, dynamic> j) {
     final rejections = (j['rejections'] as List<dynamic>?)
             ?.map((r) => r.toString())
-            .toList() ??
-        [];
+            .toList() ?? [];
 
     return RadarrRelease(
-      guid:         j['guid']     as String? ?? '',
-      title:        j['title']    as String? ?? 'Unknown',
-      size:         j['size']     as int? ?? 0,
-      seeders:      j['seeders']  as int? ?? 0,
-      leechers:     j['leechers'] as int? ?? 0,
+      guid:         j['guid']          as String? ?? '',
+      title:        j['title']         as String? ?? 'Unknown',
+      size:         j['size']          as int?    ?? 0,
+      seeders:      j['seeders']       as int?    ?? 0,
+      leechers:     j['leechers']      as int?    ?? 0,
       quality:      j['quality']?['quality']?['name'] as String? ?? '',
       qualityScore: (j['qualityWeight'] as num?)?.toDouble() ?? 0,
-      indexer:      j['indexer']  as String? ?? '',
-      age:          j['age']      as int? ?? 0,
+      indexer:      j['indexer']       as String? ?? '',
+      indexerFlags: j['indexerFlags']  as String? ?? '',
+      // Fix: ambil indexerId asli dari response, fallback 0
+      indexerId:    j['indexerId']     as int?    ?? 0,
+      age:          j['age']           as int?    ?? 0,
       rejected:     rejections.isNotEmpty,
       rejections:   rejections,
     );
