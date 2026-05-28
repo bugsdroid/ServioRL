@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/config/config_provider.dart';
 import '../../core/network/dio_client.dart';
 import 'request_model.dart';
 
@@ -9,18 +10,17 @@ class RequestRepository {
   final Dio _dio;
   RequestRepository(this._dio);
 
-  /// Ambil semua request, semua halaman (max 10 halaman / 500 item)
   Future<List<MediaRequest>> getRequests() async {
-    final all = <MediaRequest>[];
-    int page = 1;
+    final all  = <MediaRequest>[];
+    int page   = 1;
 
     while (true) {
       final res = await _dio.get(
         '/api/v1/request',
         queryParameters: {
-          'take': 50,
-          'skip': (page - 1) * 50,
-          'sort': 'added',
+          'take':   50,
+          'skip':   (page - 1) * 50,
+          'sort':   'added',
           'filter': 'all',
         },
       );
@@ -28,8 +28,8 @@ class RequestRepository {
       final results = data['results'] as List<dynamic>? ?? [];
       final total   = data['pageInfo']?['results'] as int? ?? 0;
 
-      all.addAll(results.map(
-          (j) => MediaRequest.fromJson(j as Map<String, dynamic>)));
+      all.addAll(
+          results.map((j) => MediaRequest.fromJson(j as Map<String, dynamic>)));
 
       if (all.length >= total || results.isEmpty || page >= 10) break;
       page++;
@@ -38,15 +38,12 @@ class RequestRepository {
     return all;
   }
 
-  /// Hapus request
   Future<void> deleteRequest(int id) =>
       _dio.delete('/api/v1/request/$id');
 
-  /// Approve request (admin)
   Future<void> approveRequest(int id) =>
       _dio.post('/api/v1/request/$id/approve');
 
-  /// Decline request (admin)
   Future<void> declineRequest(int id) =>
       _dio.post('/api/v1/request/$id/decline');
 }
@@ -55,16 +52,28 @@ final requestRepositoryProvider = Provider<RequestRepository>((ref) {
   return RequestRepository(ref.watch(seerrDioProvider));
 });
 
-// ── State ─────────────────────────────────────────────────────────────────────
+// ── Notifier ──────────────────────────────────────────────────────────────────
 
 class RequestsNotifier extends AsyncNotifier<List<MediaRequest>> {
   @override
-  Future<List<MediaRequest>> build() => _fetch();
+  Future<List<MediaRequest>> build() async {
+    // Cek config dulu — kalau belum diisi jangan hit API
+    final cfg = ref.read(appConfigProvider);
+    if (cfg.seerrBaseUrl.isEmpty || cfg.seerrApiKey.isEmpty) {
+      return [];
+    }
+    return _fetch();
+  }
 
   Future<List<MediaRequest>> _fetch() =>
       ref.read(requestRepositoryProvider).getRequests();
 
   Future<void> refresh() async {
+    final cfg = ref.read(appConfigProvider);
+    if (cfg.seerrBaseUrl.isEmpty || cfg.seerrApiKey.isEmpty) {
+      state = const AsyncData([]);
+      return;
+    }
     state = const AsyncLoading();
     state = await AsyncValue.guard(_fetch);
   }
