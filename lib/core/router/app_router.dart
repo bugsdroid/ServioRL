@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/home/home_shell.dart';
 import '../../features/home/home_screen.dart';
+import '../../features/home/library_screen.dart';
 import '../../features/downloads/downloads_screen.dart';
 import '../../features/requests/requests_screen.dart';
 import '../../features/search/search_screen.dart';
