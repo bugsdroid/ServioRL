@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../core/config/config_provider.dart';
 import '../../core/theme/app_theme.dart';
 import 'request_model.dart';
 import 'requests_provider.dart';
+
+// ── Tab index ─────────────────────────────────────────────────────────────────
+
+enum _Tab { all, tv, movies }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// REQUESTS SCREEN
+// ══════════════════════════════════════════════════════════════════════════════
 
 class RequestsScreen extends ConsumerStatefulWidget {
   const RequestsScreen({super.key});
@@ -14,25 +23,25 @@ class RequestsScreen extends ConsumerStatefulWidget {
 
 class _RequestsScreenState extends ConsumerState<RequestsScreen>
     with SingleTickerProviderStateMixin {
-  late TabController _tab;
+  late TabController _tabCtrl;
 
-  // Tab: 0=Seerr, 1=Sonarr, 2=Radarr  (filter by source/type)
-  // Sesuai mockup: tab Overseerr | Sonarr | Radarr
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tabCtrl = TabController(length: 3, vsync: this);
   }
 
   @override
   void dispose() {
-    _tab.dispose();
+    _tabCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(requestsProvider);
+    final cfg     = ref.watch(appConfigProvider);
+    final seerrOk = cfg.seerrBaseUrl.isNotEmpty && cfg.seerrApiKey.isNotEmpty;
+    final state   = ref.watch(requestsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -43,61 +52,195 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen>
             backgroundColor: AppColors.background,
             title: const Text('Requests'),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh, size: 20),
-                onPressed: () =>
-                    ref.read(requestsProvider.notifier).refresh(),
-              ),
+              if (seerrOk)
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded, size: 20),
+                  onPressed: () =>
+                      ref.read(requestsProvider.notifier).refresh(),
+                ),
             ],
-            bottom: TabBar(
-              controller: _tab,
-              indicatorColor: AppColors.teal,
-              indicatorWeight: 2,
-              labelColor: AppColors.teal,
-              unselectedLabelColor: AppColors.textSecondary,
-              labelStyle: const TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w600),
-              unselectedLabelStyle: const TextStyle(fontSize: 13),
-              tabs: const [
-                Tab(text: 'Seerr'),
-                Tab(text: 'Sonarr'),
-                Tab(text: 'Radarr'),
-              ],
-            ),
+            bottom: seerrOk
+                ? TabBar(
+                    controller: _tabCtrl,
+                    indicatorColor: AppColors.teal,
+                    indicatorWeight: 2,
+                    labelColor: AppColors.teal,
+                    unselectedLabelColor: AppColors.textSecondary,
+                    labelStyle: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                    unselectedLabelStyle: const TextStyle(fontSize: 13),
+                    tabs: const [
+                      Tab(text: 'All'),
+                      Tab(text: 'Series'),
+                      Tab(text: 'Movies'),
+                    ],
+                  )
+                : null,
           ),
         ],
-        body: state.when(
-          loading: () => const Center(
-            child: CircularProgressIndicator(color: AppColors.teal),
-          ),
-          error: (e, _) => _ErrorView(error: e.toString(), ref: ref),
-          data: (all) {
-            // Filter per tab
-            final seerr  = all; // semua request dari Seerr
-            final tv     = all.where((r) => r.mediaType == MediaType.tv).toList();
-            final movies = all.where((r) => r.mediaType == MediaType.movie).toList();
+        body: !seerrOk
+            ? _NotConfigured()
+            : state.when(
+                loading: () => const Center(
+                  child:
+                      CircularProgressIndicator(color: AppColors.teal),
+                ),
+                error: (e, _) => _ErrorView(
+                  error: e.toString(),
+                  onRetry: () =>
+                      ref.read(requestsProvider.notifier).refresh(),
+                ),
+                data: (all) {
+                  if (all.isEmpty) {
+                    return _EmptyView(
+                      onRefresh: () =>
+                          ref.read(requestsProvider.notifier).refresh(),
+                    );
+                  }
 
-            return TabBarView(
-              controller: _tab,
-              children: [
-                _RequestsBody(requests: seerr,  label: 'Seerr'),
-                _RequestsBody(requests: tv,     label: 'Sonarr'),
-                _RequestsBody(requests: movies, label: 'Radarr'),
-              ],
-            );
-          },
+                  final tv = all
+                      .where((r) => r.mediaType == MediaType.tv)
+                      .toList();
+                  final movies = all
+                      .where((r) => r.mediaType == MediaType.movie)
+                      .toList();
+
+                  return TabBarView(
+                    controller: _tabCtrl,
+                    children: [
+                      _RequestList(requests: all),
+                      _RequestList(requests: tv),
+                      _RequestList(requests: movies),
+                    ],
+                  );
+                },
+              ),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NOT CONFIGURED
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _NotConfigured extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.inbox_outlined,
+                size: 40,
+                color: AppColors.textDisabled,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Seerr belum dikonfigurasi',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Isi Base URL dan API Key Seerr di Settings untuk melihat dan mengelola request.',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              icon: const Icon(Icons.settings_rounded, size: 16),
+              label: const Text('Buka Settings'),
+              onPressed: () => Navigator.of(context).pushNamed('/settings'),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ── Error view ────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// EMPTY VIEW
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _EmptyView extends StatelessWidget {
+  final VoidCallback onRefresh;
+  const _EmptyView({required this.onRefresh});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.tealSurface,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check_circle_rounded,
+              size: 40,
+              color: AppColors.teal,
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Tidak ada request',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Semua request sudah selesai.',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 24),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.refresh_rounded, size: 16),
+            label: const Text('Refresh'),
+            onPressed: onRefresh,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ERROR VIEW
+// ══════════════════════════════════════════════════════════════════════════════
 
 class _ErrorView extends StatelessWidget {
   final String error;
-  final WidgetRef ref;
-  const _ErrorView({required this.error, required this.ref});
+  final VoidCallback onRetry;
+  const _ErrorView({required this.error, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -118,26 +261,29 @@ class _ErrorView extends StatelessWidget {
                   size: 40, color: AppColors.error),
             ),
             const SizedBox(height: 20),
-            const Text('Cannot connect to Seerr',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center),
+            const Text(
+              'Gagal terhubung ke Seerr',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 8),
-            Text(error,
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12),
-                textAlign: TextAlign.center,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis),
+            Text(
+              error,
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 12),
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
             const SizedBox(height: 24),
             FilledButton.icon(
-              icon: const Icon(Icons.refresh, size: 16),
+              icon: const Icon(Icons.refresh_rounded, size: 16),
               label: const Text('Retry'),
-              onPressed: () =>
-                  ref.read(requestsProvider.notifier).refresh(),
+              onPressed: onRetry,
             ),
           ],
         ),
@@ -146,158 +292,119 @@ class _ErrorView extends StatelessWidget {
   }
 }
 
-// ── Requests body (per tab) ───────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// REQUEST LIST — dengan status filter & pull-to-refresh
+// ══════════════════════════════════════════════════════════════════════════════
 
-class _RequestsBody extends ConsumerWidget {
+class _RequestList extends ConsumerStatefulWidget {
   final List<MediaRequest> requests;
-  final String label;
-  const _RequestsBody({required this.requests, required this.label});
+  const _RequestList({required this.requests});
 
-  List<MediaRequest> _filtered(List<MediaRequest> all, _StatusFilter f) {
-    return switch (f) {
-      _StatusFilter.all      => all,
-      _StatusFilter.pending  => all.where((r) => r.status == RequestStatus.pending).toList(),
-      _StatusFilter.approved => all.where((r) => r.status == RequestStatus.approved).toList(),
-      _StatusFilter.available=> all.where((r) => r.status == RequestStatus.available).toList(),
+  @override
+  ConsumerState<_RequestList> createState() => _RequestListState();
+}
+
+class _RequestListState extends ConsumerState<_RequestList> {
+  _StatusFilter _filter = _StatusFilter.all;
+
+  List<MediaRequest> get _filtered {
+    return switch (_filter) {
+      _StatusFilter.all =>
+        widget.requests,
+      _StatusFilter.pending =>
+        widget.requests.where((r) => r.status == RequestStatus.pending).toList(),
+      _StatusFilter.approved =>
+        widget.requests.where((r) => r.status == RequestStatus.approved).toList(),
+      _StatusFilter.available =>
+        widget.requests.where((r) => r.status == RequestStatus.available).toList(),
     };
   }
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return _RequestsBodyState(requests: requests);
-  }
-}
-
-class _RequestsBodyState extends StatefulWidget {
-  final List<MediaRequest> requests;
-  const _RequestsBodyState({required this.requests});
-
-  @override
-  State<_RequestsBodyState> createState() => __RequestsBodyStateState();
-}
-
-class __RequestsBodyStateState extends State<_RequestsBodyState> {
-  _StatusFilter _filter = _StatusFilter.all;
+  int _count(RequestStatus s) =>
+      widget.requests.where((r) => r.status == s).length;
 
   @override
   Widget build(BuildContext context) {
-    // Counts
-    final pending   = widget.requests.where((r) => r.status == RequestStatus.pending).length;
-    final approved  = widget.requests.where((r) => r.status == RequestStatus.approved).length;
-    final available = widget.requests.where((r) => r.status == RequestStatus.available).length;
+    final pending   = _count(RequestStatus.pending);
+    final approved  = _count(RequestStatus.approved);
+    final available = _count(RequestStatus.available);
+    final items     = _filtered;
 
-    final filtered = switch (_filter) {
-      _StatusFilter.all       => widget.requests,
-      _StatusFilter.pending   => widget.requests.where((r) => r.status == RequestStatus.pending).toList(),
-      _StatusFilter.approved  => widget.requests.where((r) => r.status == RequestStatus.approved).toList(),
-      _StatusFilter.available => widget.requests.where((r) => r.status == RequestStatus.available).toList(),
-    };
-
-    return CustomScrollView(
-      slivers: [
-        // ── Status summary cards ─────────────────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Row(
-              children: [
-                _CountCard(
-                  label: 'Pending',
-                  value: pending,
-                  color: AppColors.warning,
-                  selected: _filter == _StatusFilter.pending,
-                  onTap: () => setState(() => _filter =
-                      _filter == _StatusFilter.pending
-                          ? _StatusFilter.all
-                          : _StatusFilter.pending),
-                ),
-                const SizedBox(width: 10),
-                _CountCard(
-                  label: 'Approved',
-                  value: approved,
-                  color: AppColors.success,
-                  selected: _filter == _StatusFilter.approved,
-                  onTap: () => setState(() => _filter =
-                      _filter == _StatusFilter.approved
-                          ? _StatusFilter.all
-                          : _StatusFilter.approved),
-                ),
-                const SizedBox(width: 10),
-                _CountCard(
-                  label: 'Available',
-                  value: available,
-                  color: AppColors.teal,
-                  selected: _filter == _StatusFilter.available,
-                  onTap: () => setState(() => _filter =
-                      _filter == _StatusFilter.available
-                          ? _StatusFilter.all
-                          : _StatusFilter.available),
-                ),
-              ],
+    return RefreshIndicator(
+      color: AppColors.teal,
+      onRefresh: () => ref.read(requestsProvider.notifier).refresh(),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          // ── Status cards ─────────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              child: Row(
+                children: [
+                  _CountCard(
+                    label: 'Pending',
+                    value: pending,
+                    color: AppColors.warning,
+                    selected: _filter == _StatusFilter.pending,
+                    onTap: () => setState(() => _filter =
+                        _filter == _StatusFilter.pending
+                            ? _StatusFilter.all
+                            : _StatusFilter.pending),
+                  ),
+                  const SizedBox(width: 10),
+                  _CountCard(
+                    label: 'Approved',
+                    value: approved,
+                    color: AppColors.success,
+                    selected: _filter == _StatusFilter.approved,
+                    onTap: () => setState(() => _filter =
+                        _filter == _StatusFilter.approved
+                            ? _StatusFilter.all
+                            : _StatusFilter.approved),
+                  ),
+                  const SizedBox(width: 10),
+                  _CountCard(
+                    label: 'Available',
+                    value: available,
+                    color: AppColors.teal,
+                    selected: _filter == _StatusFilter.available,
+                    onTap: () => setState(() => _filter =
+                        _filter == _StatusFilter.available
+                            ? _StatusFilter.all
+                            : _StatusFilter.available),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
 
-        const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-        // ── Section: Pending requests ────────────────────────────────
-        if (_filter == _StatusFilter.all || _filter == _StatusFilter.pending)
-          ..._buildSection(
-            context,
-            title: 'Pending Requests',
-            items: widget.requests
-                .where((r) => r.status == RequestStatus.pending)
-                .toList(),
-          ),
-
-        // ── Section: Recently Approved ───────────────────────────────
-        if (_filter == _StatusFilter.all || _filter == _StatusFilter.approved)
-          ..._buildSection(
-            context,
-            title: 'Recently Approved',
-            items: widget.requests
-                .where((r) => r.status == RequestStatus.approved)
-                .toList(),
-          ),
-
-        // ── Section: Available ───────────────────────────────────────
-        if (_filter == _StatusFilter.all || _filter == _StatusFilter.available)
-          ..._buildSection(
-            context,
-            title: 'Available',
-            items: widget.requests
-                .where((r) => r.status == RequestStatus.available)
-                .toList(),
-          ),
-
-        const SliverToBoxAdapter(child: SizedBox(height: 100)),
-      ],
+          // ── Empty filtered ────────────────────────────────────────────
+          if (items.isEmpty)
+            SliverFillRemaining(
+              child: Center(
+                child: Text(
+                  'Tidak ada request dengan status ini.',
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 13),
+                ),
+              ),
+            )
+          else ...[
+            // ── List ───────────────────────────────────────────────────
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (ctx, i) => _RequestCard(request: items[i]),
+                  childCount: items.length,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
-  }
-
-  List<Widget> _buildSection(BuildContext context,
-      {required String title, required List<MediaRequest> items}) {
-    if (items.isEmpty) return [];
-    return [
-      SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-          child: Text(title,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              )),
-        ),
-      ),
-      SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (ctx, i) => _RequestCard(request: items[i]),
-          childCount: items.length,
-        ),
-      ),
-      const SliverToBoxAdapter(child: SizedBox(height: 20)),
-    ];
   }
 }
 
@@ -326,8 +433,9 @@ class _CountCard extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+          duration: const Duration(milliseconds: 180),
+          padding:
+              const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
           decoration: BoxDecoration(
             color: selected ? color.withOpacity(0.15) : AppColors.card,
             borderRadius: BorderRadius.circular(12),
@@ -339,19 +447,23 @@ class _CountCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(value.toString(),
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                    height: 1,
-                  )),
+              Text(
+                value.toString(),
+                style: TextStyle(
+                  color: color,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  height: 1,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text(label,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11,
-                  )),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                ),
+              ),
             ],
           ),
         ),
@@ -369,7 +481,7 @@ class _RequestCard extends ConsumerWidget {
   String _timeAgo(DateTime dt) {
     final diff = DateTime.now().difference(dt);
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24)   return '${diff.inHours}h ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
     return '${diff.inDays}d ago';
   }
 
@@ -378,16 +490,16 @@ class _RequestCard extends ConsumerWidget {
     final r = request;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: AppColors.card,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border, width: 0.5),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Poster ──────────────────────────────────────────────────
+          // ── Poster ────────────────────────────────────────────────────
           ClipRRect(
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(12),
@@ -396,59 +508,37 @@ class _RequestCard extends ConsumerWidget {
             child: r.posterUrl().isNotEmpty
                 ? CachedNetworkImage(
                     imageUrl: r.posterUrl(),
-                    width: 56,
-                    height: 80,
+                    width: 60,
+                    height: 90,
                     fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(
-                      width: 56, height: 80,
-                      color: AppColors.surfaceVariant,
-                      child: const Icon(Icons.movie_outlined,
-                          color: AppColors.textDisabled, size: 20),
-                    ),
-                    errorWidget: (_, __, ___) => Container(
-                      width: 56, height: 80,
-                      color: AppColors.surfaceVariant,
-                      child: Icon(
-                        r.mediaType == MediaType.tv
-                            ? Icons.tv_outlined
-                            : Icons.movie_outlined,
-                        color: AppColors.textDisabled,
-                        size: 20,
-                      ),
-                    ),
+                    placeholder: (_, __) => _posterPlaceholder(r),
+                    errorWidget: (_, __, ___) => _posterPlaceholder(r),
                   )
-                : Container(
-                    width: 56, height: 80,
-                    color: AppColors.surfaceVariant,
-                    child: Icon(
-                      r.mediaType == MediaType.tv
-                          ? Icons.tv_outlined
-                          : Icons.movie_outlined,
-                      color: AppColors.textDisabled,
-                      size: 20,
-                    ),
-                  ),
+                : _posterPlaceholder(r),
           ),
 
-          // ── Content ──────────────────────────────────────────────────
+          // ── Content ────────────────────────────────────────────────────
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Title
-                  Text(r.title,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 3),
+                  Text(
+                    r.title,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
 
-                  // Year + type
+                  // Type + year
                   Row(
                     children: [
                       Container(
@@ -468,19 +558,21 @@ class _RequestCard extends ConsumerWidget {
                       ),
                       if (r.year > 0) ...[
                         const SizedBox(width: 6),
-                        Text('• ${r.year}',
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 11,
-                            )),
+                        Text(
+                          '${r.year}',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
                       ],
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
 
                   // Requested by + time
                   Text(
-                    'Requested by ${r.requestedBy}  •  ${_timeAgo(r.createdAt)}',
+                    '${r.requestedBy}  •  ${_timeAgo(r.createdAt)}',
                     style: const TextStyle(
                       color: AppColors.textDisabled,
                       fontSize: 11,
@@ -493,12 +585,174 @@ class _RequestCard extends ConsumerWidget {
             ),
           ),
 
-          // ── Status badge ─────────────────────────────────────────────
+          // ── Right: status + actions ────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: _StatusBadge(status: r.status),
+            padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _StatusBadge(status: r.status),
+                const SizedBox(height: 8),
+                _ActionRow(request: r),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _posterPlaceholder(MediaRequest r) => Container(
+        width: 60,
+        height: 90,
+        color: AppColors.surfaceVariant,
+        child: Icon(
+          r.mediaType == MediaType.tv
+              ? Icons.tv_outlined
+              : Icons.movie_outlined,
+          color: AppColors.textDisabled,
+          size: 22,
+        ),
+      );
+}
+
+// ── Action row (approve / decline / delete) ───────────────────────────────────
+
+class _ActionRow extends ConsumerStatefulWidget {
+  final MediaRequest request;
+  const _ActionRow({required this.request});
+
+  @override
+  ConsumerState<_ActionRow> createState() => _ActionRowState();
+}
+
+class _ActionRowState extends ConsumerState<_ActionRow> {
+  bool _loading = false;
+
+  Future<void> _do(Future<void> Function() action) async {
+    setState(() => _loading = true);
+    try {
+      await action();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const SizedBox(
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(
+            strokeWidth: 1.5, color: AppColors.teal),
+      );
+    }
+
+    final r = widget.request;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Approve — hanya untuk pending
+        if (r.status == RequestStatus.pending)
+          _IconAction(
+            icon: Icons.check_rounded,
+            color: AppColors.success,
+            tooltip: 'Approve',
+            onTap: () => _do(
+              () => ref.read(requestsProvider.notifier).approve(r.id),
+            ),
+          ),
+
+        // Decline — hanya untuk pending
+        if (r.status == RequestStatus.pending) ...[
+          const SizedBox(width: 6),
+          _IconAction(
+            icon: Icons.close_rounded,
+            color: AppColors.error,
+            tooltip: 'Decline',
+            onTap: () => _do(
+              () => ref.read(requestsProvider.notifier).decline(r.id),
+            ),
+          ),
+        ],
+
+        // Delete — selalu ada
+        const SizedBox(width: 6),
+        _IconAction(
+          icon: Icons.delete_outline_rounded,
+          color: AppColors.textDisabled,
+          tooltip: 'Hapus',
+          onTap: () async {
+            final ok = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: AppColors.surface,
+                title: const Text('Hapus Request?'),
+                content: Text(r.title),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Batal'),
+                  ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.error),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Hapus'),
+                  ),
+                ],
+              ),
+            );
+            if (ok == true) {
+              await _do(
+                () => ref.read(requestsProvider.notifier).delete(r.id),
+              );
+            }
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _IconAction extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _IconAction({
+    required this.icon,
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(icon, size: 14, color: color),
+        ),
       ),
     );
   }
@@ -521,18 +775,20 @@ class _StatusBadge extends StatelessWidget {
     };
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color.withOpacity(0.15),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withOpacity(0.4), width: 0.5),
       ),
-      child: Text(label,
-          style: TextStyle(
-            color: color,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          )),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }
