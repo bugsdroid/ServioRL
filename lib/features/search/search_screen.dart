@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../core/config/config_provider.dart';
 import '../../core/theme/app_theme.dart';
 import 'search_model.dart';
 import 'search_provider.dart';
@@ -13,13 +14,8 @@ class SearchScreen extends ConsumerStatefulWidget {
 }
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
-  final _ctrl    = TextEditingController();
-  final _focus   = FocusNode();
-
-  static const _popular = [
-    'Dune Part Two', 'Oppenheimer', 'John Wick 4',
-    'The Batman 2', 'Avatar 2', 'Top Gun Maverick',
-  ];
+  final _ctrl  = TextEditingController();
+  final _focus = FocusNode();
 
   @override
   void dispose() {
@@ -44,6 +40,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final isMovie = ref.watch(searchIsMovieProvider);
     final query   = ref.watch(searchQueryProvider);
+    final cfg     = ref.watch(appConfigProvider);
+    final seerrOk = cfg.seerrBaseUrl.isNotEmpty && cfg.seerrApiKey.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -54,7 +52,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Search bar ─────────────────────────────────────────────
+          // ── Search bar ───────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Row(
@@ -64,12 +62,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     controller:  _ctrl,
                     focusNode:   _focus,
                     onSubmitted: _submit,
+                    enabled: seerrOk,
                     style: const TextStyle(
                         color: AppColors.textPrimary, fontSize: 14),
                     decoration: InputDecoration(
-                      hintText: 'Search movies, series...',
-                      prefixIcon: const Icon(Icons.search,
-                          color: AppColors.textDisabled, size: 20),
+                      hintText: seerrOk
+                          ? 'Search movies, series...'
+                          : 'Configure Seerr in Settings first',
+                      prefixIcon: const Icon(
+                          Icons.search,
+                          color: AppColors.textDisabled,
+                          size: 20),
                       suffixIcon: query.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.close,
@@ -80,66 +83,120 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                // Filter icon
-                Container(
-                  width: 42, height: 42,
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceVariant,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border, width: 0.5),
-                  ),
-                  child: const Icon(Icons.tune_rounded,
-                      color: AppColors.textSecondary, size: 20),
-                ),
               ],
             ),
           ),
 
-          // ── Movies / Series toggle ─────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Row(
-              children: [
-                _ToggleBtn(
-                  label: 'Movies',
-                  selected: isMovie,
-                  onTap: () {
-                    ref.read(searchIsMovieProvider.notifier).state = true;
-                    if (query.isNotEmpty) {
-                      ref.read(searchQueryProvider.notifier).state = query;
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-                _ToggleBtn(
-                  label: 'Series',
-                  selected: !isMovie,
-                  onTap: () {
-                    ref.read(searchIsMovieProvider.notifier).state = false;
-                    if (query.isNotEmpty) {
-                      ref.read(searchQueryProvider.notifier).state = query;
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
+          // ── Not configured warning ───────────────────────────────────
+          if (!seerrOk)
+            _NotConfiguredBanner(),
 
-          // ── Body: results or home ──────────────────────────────────
-          Expanded(
-            child: query.isNotEmpty
-                ? _SearchResults()
-                : _SearchHome(
-                    popular:  _popular,
-                    isMovie:  isMovie,
-                    onPopular: (q) {
-                      _ctrl.text = q;
-                      _submit(q);
+          // ── Movie / Series toggle ────────────────────────────────────
+          if (seerrOk)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Row(
+                children: [
+                  _ToggleBtn(
+                    label: 'Movies',
+                    selected: isMovie,
+                    onTap: () {
+                      ref.read(searchIsMovieProvider.notifier).state = true;
+                      if (query.isNotEmpty) {
+                        // re-trigger search
+                        ref.read(searchQueryProvider.notifier).state = query;
+                      }
                     },
                   ),
+                  const SizedBox(width: 8),
+                  _ToggleBtn(
+                    label: 'Series',
+                    selected: !isMovie,
+                    onTap: () {
+                      ref.read(searchIsMovieProvider.notifier).state = false;
+                      if (query.isNotEmpty) {
+                        ref.read(searchQueryProvider.notifier).state = query;
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+          // ── Body ─────────────────────────────────────────────────────
+          Expanded(
+            child: !seerrOk
+                ? const SizedBox.shrink()
+                : query.isNotEmpty
+                    ? _SearchResults()
+                    : _SearchHome(
+                        onPopular: (q) {
+                          _ctrl.text = q;
+                          _submit(q);
+                        },
+                      ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Not configured banner ─────────────────────────────────────────────────────
+
+class _NotConfiguredBanner extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Expanded(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.search_off_rounded,
+                  size: 40,
+                  color: AppColors.textDisabled,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Seerr belum dikonfigurasi',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Isi Base URL dan API Key Seerr di Settings untuk mulai mencari dan request film/series.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                icon: const Icon(Icons.settings_rounded, size: 16),
+                label: const Text('Buka Settings'),
+                onPressed: () {
+                  Navigator.of(context).pushNamed('/settings');
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -160,7 +217,8 @@ class _ToggleBtn extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         decoration: BoxDecoration(
           color: selected ? AppColors.teal : AppColors.surfaceVariant,
           borderRadius: BorderRadius.circular(8),
@@ -169,12 +227,16 @@ class _ToggleBtn extends StatelessWidget {
             width: 0.5,
           ),
         ),
-        child: Text(label,
-            style: TextStyle(
-              color: selected ? AppColors.background : AppColors.textSecondary,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            )),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected
+                ? AppColors.background
+                : AppColors.textSecondary,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
@@ -183,15 +245,18 @@ class _ToggleBtn extends StatelessWidget {
 // ── Search home (popular + trending) ─────────────────────────────────────────
 
 class _SearchHome extends ConsumerWidget {
-  final List<String> popular;
-  final bool isMovie;
   final void Function(String) onPopular;
 
-  const _SearchHome({
-    required this.popular,
-    required this.isMovie,
-    required this.onPopular,
-  });
+  static const _popular = [
+    'Dune Part Two',
+    'Oppenheimer',
+    'John Wick 4',
+    'Avengers',
+    'Avatar',
+    'Interstellar',
+  ];
+
+  const _SearchHome({required this.onPopular});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -201,18 +266,20 @@ class _SearchHome extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
       children: [
-        // ── Popular searches ─────────────────────────────────────────
-        const Text('Popular Searches',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            )),
+        // ── Popular searches ───────────────────────────────────────────
+        const Text(
+          'Popular Searches',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: popular
+          children: _popular
               .map((q) => GestureDetector(
                     onTap: () => onPopular(q),
                     child: Container(
@@ -221,45 +288,49 @@ class _SearchHome extends ConsumerWidget {
                       decoration: BoxDecoration(
                         color: AppColors.surfaceVariant,
                         borderRadius: BorderRadius.circular(20),
-                        border:
-                            Border.all(color: AppColors.border, width: 0.5),
+                        border: Border.all(
+                            color: AppColors.border, width: 0.5),
                       ),
-                      child: Text(q,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 12,
-                          )),
+                      child: Text(
+                        q,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
                   ))
               .toList(),
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 28),
 
-        // ── Trending Movies ──────────────────────────────────────────
-        _SectionHeader(
-          title: 'Trending Movies',
-          onViewAll: () {},
-        ),
+        // ── Trending Movies ────────────────────────────────────────────
+        _SectionHeader(title: 'Trending Movies'),
         const SizedBox(height: 12),
         trendingMovies.when(
           loading: () => const _PosterGridSkeleton(),
-          error: (_, __) => const _GridError(label: 'movies'),
-          data: (list) => _PosterGrid(items: list),
+          error: (e, _) => _GridError(
+            message: 'Tidak bisa load trending — $e',
+          ),
+          data: (list) => list.isEmpty
+              ? const _GridError(message: 'Tidak ada data trending')
+              : _PosterGrid(items: list),
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 28),
 
-        // ── Trending Series ──────────────────────────────────────────
-        _SectionHeader(
-          title: 'Trending Series',
-          onViewAll: () {},
-        ),
+        // ── Trending Series ────────────────────────────────────────────
+        _SectionHeader(title: 'Trending Series'),
         const SizedBox(height: 12),
         trendingTv.when(
           loading: () => const _PosterGridSkeleton(),
-          error: (_, __) => const _GridError(label: 'series'),
-          data: (list) => _PosterGrid(items: list),
+          error: (e, _) => _GridError(
+            message: 'Tidak bisa load trending — $e',
+          ),
+          data: (list) => list.isEmpty
+              ? const _GridError(message: 'Tidak ada data trending')
+              : _PosterGrid(items: list),
         ),
       ],
     );
@@ -268,31 +339,16 @@ class _SearchHome extends ConsumerWidget {
 
 class _SectionHeader extends StatelessWidget {
   final String title;
-  final VoidCallback onViewAll;
-  const _SectionHeader({required this.title, required this.onViewAll});
+  const _SectionHeader({required this.title});
 
   @override
-  Widget build(BuildContext context) => Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(title,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              )),
-          GestureDetector(
-            onTap: onViewAll,
-            child: const Row(
-              children: [
-                Text('View all',
-                    style: TextStyle(color: AppColors.teal, fontSize: 13)),
-                SizedBox(width: 2),
-                Icon(Icons.chevron_right, color: AppColors.teal, size: 16),
-              ],
-            ),
-          ),
-        ],
+  Widget build(BuildContext context) => Text(
+        title,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
       );
 }
 
@@ -304,26 +360,24 @@ class _PosterGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final display = items.take(6).toList();
     return SizedBox(
-      height: 160,
+      height: 165,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: display.length,
+        itemCount: items.length,
         separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (ctx, i) => _PosterCard(item: display[i], ref: ref),
+        itemBuilder: (ctx, i) => _PosterCard(item: items[i]),
       ),
     );
   }
 }
 
-class _PosterCard extends StatelessWidget {
+class _PosterCard extends ConsumerWidget {
   final SearchResult item;
-  final WidgetRef ref;
-  const _PosterCard({required this.item, required this.ref});
+  const _PosterCard({required this.item});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return GestureDetector(
       onTap: () => _showDetail(context, item, ref),
       child: SizedBox(
@@ -331,7 +385,6 @@ class _PosterCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Poster
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: item.posterUrl().isNotEmpty
@@ -340,37 +393,43 @@ class _PosterCard extends StatelessWidget {
                       width: 100,
                       height: 130,
                       fit: BoxFit.cover,
-                      placeholder: (_, __) => _posterSkeleton(),
-                      errorWidget: (_, __, ___) => _posterFallback(item),
+                      placeholder: (_, __) => _skeleton(),
+                      errorWidget: (_, __, ___) => _fallback(),
                     )
-                  : _posterFallback(item),
+                  : _fallback(),
             ),
             const SizedBox(height: 5),
-            Text(item.title,
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 11),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
+            Text(
+              item.title,
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 11),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             if (item.year > 0)
-              Text(item.year.toString(),
-                  style: const TextStyle(
-                      color: AppColors.textDisabled, fontSize: 10)),
+              Text(
+                item.year.toString(),
+                style: const TextStyle(
+                    color: AppColors.textDisabled, fontSize: 10),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _posterSkeleton() => Container(
-        width: 100, height: 130,
+  Widget _skeleton() => Container(
+        width: 100,
+        height: 130,
         decoration: BoxDecoration(
           color: AppColors.surfaceVariant,
           borderRadius: BorderRadius.circular(8),
         ),
       );
 
-  Widget _posterFallback(SearchResult item) => Container(
-        width: 100, height: 130,
+  Widget _fallback() => Container(
+        width: 100,
+        height: 130,
         color: AppColors.surfaceVariant,
         child: Icon(
           item.mediaType == MediaType.tv
@@ -400,13 +459,14 @@ class _PosterGridSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 160,
+      height: 165,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: 4,
+        itemCount: 5,
         separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (_, __) => Container(
-          width: 100, height: 130,
+          width: 100,
+          height: 130,
           decoration: BoxDecoration(
             color: AppColors.surfaceVariant,
             borderRadius: BorderRadius.circular(8),
@@ -418,18 +478,27 @@ class _PosterGridSkeleton extends StatelessWidget {
 }
 
 class _GridError extends StatelessWidget {
-  final String label;
-  const _GridError({required this.label});
+  final String message;
+  const _GridError({required this.message});
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        height: 80,
-        child: Center(
-          child: Text('Could not load trending $label',
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 12)),
+  Widget build(BuildContext context) {
+    return Container(
+      height: 80,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Center(
+        child: Text(
+          message,
+          style: const TextStyle(
+              color: AppColors.textSecondary, fontSize: 12),
+          textAlign: TextAlign.center,
         ),
-      );
+      ),
+    );
+  }
 }
 
 // ── Search results ────────────────────────────────────────────────────────────
@@ -443,26 +512,55 @@ class _SearchResults extends ConsumerWidget {
       loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.teal)),
       error: (e, _) => Center(
-        child: Text('Error: $e',
-            style: const TextStyle(color: AppColors.error, fontSize: 13)),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.wifi_off_rounded,
+                  size: 40, color: AppColors.error),
+              const SizedBox(height: 12),
+              const Text(
+                'Gagal terhubung ke Seerr',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                e.toString(),
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
       ),
       data: (results) {
         if (results.isEmpty) {
           return const Center(
-            child: Text('No results found',
-                style: TextStyle(color: AppColors.textSecondary)),
+            child: Text(
+              'Tidak ada hasil ditemukan',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
           );
         }
         return ListView.builder(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
           itemCount: results.length,
-          itemBuilder: (ctx, i) =>
-              _SearchResultCard(item: results[i]),
+          itemBuilder: (ctx, i) => _SearchResultCard(item: results[i]),
         );
       },
     );
   }
 }
+
+// ── Search result card ────────────────────────────────────────────────────────
 
 class _SearchResultCard extends ConsumerWidget {
   final SearchResult item;
@@ -499,23 +597,34 @@ class _SearchResultCard extends ConsumerWidget {
               child: r.posterUrl().isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: r.posterUrl('w92'),
-                      width: 56, height: 80,
+                      width: 56,
+                      height: 80,
                       fit: BoxFit.cover,
                       placeholder: (_, __) => Container(
-                          width: 56, height: 80,
+                          width: 56,
+                          height: 80,
                           color: AppColors.surfaceVariant),
                       errorWidget: (_, __, ___) => Container(
-                          width: 56, height: 80,
+                          width: 56,
+                          height: 80,
                           color: AppColors.surfaceVariant,
                           child: const Icon(Icons.movie_outlined,
                               color: AppColors.textDisabled, size: 20)),
                     )
                   : Container(
-                      width: 56, height: 80,
+                      width: 56,
+                      height: 80,
                       color: AppColors.surfaceVariant,
-                      child: const Icon(Icons.movie_outlined,
-                          color: AppColors.textDisabled, size: 20)),
+                      child: Icon(
+                        r.mediaType == MediaType.tv
+                            ? Icons.tv_outlined
+                            : Icons.movie_outlined,
+                        color: AppColors.textDisabled,
+                        size: 20,
+                      ),
+                    ),
             ),
+
             // Info
             Expanded(
               child: Padding(
@@ -524,22 +633,26 @@ class _SearchResultCard extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(r.title,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      r.title,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
                         if (r.year > 0)
-                          Text('${r.year}  •  ',
-                              style: const TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 11)),
+                          Text(
+                            '${r.year}  •  ',
+                            style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11),
+                          ),
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 5, vertical: 1),
@@ -556,21 +669,35 @@ class _SearchResultCard extends ConsumerWidget {
                                 fontSize: 10),
                           ),
                         ),
+                        if (r.voteAverage > 0) ...[
+                          const SizedBox(width: 6),
+                          const Icon(Icons.star_rounded,
+                              color: Colors.amber, size: 12),
+                          Text(
+                            ' ${r.voteAverage.toStringAsFixed(1)}',
+                            style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11),
+                          ),
+                        ],
                       ],
                     ),
                     if (r.overview.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Text(r.overview,
-                          style: const TextStyle(
-                              color: AppColors.textDisabled,
-                              fontSize: 11),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis),
+                      Text(
+                        r.overview,
+                        style: const TextStyle(
+                            color: AppColors.textDisabled,
+                            fontSize: 11),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                   ],
                 ),
               ),
             ),
+
             // Request button
             Padding(
               padding: const EdgeInsets.only(right: 12),
@@ -605,7 +732,10 @@ class _RequestBtnState extends ConsumerState<_RequestBtn> {
             widget.item.id,
             widget.item.mediaTypeStr,
           );
-      setState(() { _loading = false; _done = true; });
+      setState(() {
+        _loading = false;
+        _done    = true;
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${widget.item.title} requested!')),
@@ -615,8 +745,10 @@ class _RequestBtnState extends ConsumerState<_RequestBtn> {
       setState(() => _loading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e'),
-              backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Gagal: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     }
@@ -628,53 +760,63 @@ class _RequestBtnState extends ConsumerState<_RequestBtn> {
 
     if (r.mediaAvailable) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: AppColors.tealSurface,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: const Text('Available',
-            style: TextStyle(
-                color: AppColors.teal,
-                fontSize: 11,
-                fontWeight: FontWeight.w600)),
+        child: const Text(
+          'Available',
+          style: TextStyle(
+              color: AppColors.teal,
+              fontSize: 11,
+              fontWeight: FontWeight.w600),
+        ),
       );
     }
 
     if (r.alreadyRequested || _done) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: AppColors.surfaceVariant,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: const Text('Requested',
-            style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 11,
-                fontWeight: FontWeight.w600)),
+        child: const Text(
+          'Requested',
+          style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600),
+        ),
       );
     }
 
     return GestureDetector(
       onTap: _request,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: AppColors.teal,
           borderRadius: BorderRadius.circular(20),
         ),
         child: _loading
             ? const SizedBox(
-                width: 14, height: 14,
+                width: 14,
+                height: 14,
                 child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.background))
-            : const Text('Request',
+                    strokeWidth: 2, color: AppColors.background),
+              )
+            : const Text(
+                'Request',
                 style: TextStyle(
                     color: AppColors.background,
                     fontSize: 11,
-                    fontWeight: FontWeight.w600)),
+                    fontWeight: FontWeight.w600),
+              ),
       ),
     );
   }
@@ -708,25 +850,25 @@ class _DetailSheet extends StatelessWidget {
             Center(
               child: Container(
                 margin: const EdgeInsets.only(top: 10),
-                width: 36, height: 4,
+                width: 36,
+                height: 4,
                 decoration: BoxDecoration(
                   color: AppColors.border,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
+
             // Backdrop
             if (r.backdropUrl().isNotEmpty)
-              ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(20)),
-                child: CachedNetworkImage(
-                  imageUrl: r.backdropUrl(),
-                  height: 180,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) =>
-                      const SizedBox(height: 180, child: ColoredBox(color: AppColors.surfaceVariant)),
+              CachedNetworkImage(
+                imageUrl: r.backdropUrl(),
+                height: 180,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => const SizedBox(
+                  height: 100,
+                  child: ColoredBox(color: AppColors.surfaceVariant),
                 ),
               ),
 
@@ -735,25 +877,34 @@ class _DetailSheet extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title + year
-                  Text(r.title,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      )),
-                  const SizedBox(height: 4),
+                  // Title
+                  Text(
+                    r.title,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Meta
                   Row(
                     children: [
                       if (r.year > 0)
-                        Text('${r.year}  •  ',
-                            style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 13)),
+                        Text(
+                          '${r.year}  •  ',
+                          style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13),
+                        ),
                       Text(
-                        r.mediaType == MediaType.tv ? 'Series' : 'Movie',
+                        r.mediaType == MediaType.tv
+                            ? 'Series'
+                            : 'Movie',
                         style: const TextStyle(
-                            color: AppColors.textSecondary, fontSize: 13),
+                            color: AppColors.textSecondary,
+                            fontSize: 13),
                       ),
                       if (r.voteAverage > 0) ...[
                         const Text('  •  ',
@@ -761,46 +912,44 @@ class _DetailSheet extends StatelessWidget {
                                 color: AppColors.textSecondary)),
                         const Icon(Icons.star_rounded,
                             color: Colors.amber, size: 14),
-                        Text(' ${r.voteAverage.toStringAsFixed(1)}',
-                            style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 13)),
+                        Text(
+                          ' ${r.voteAverage.toStringAsFixed(1)}',
+                          style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13),
+                        ),
                       ],
                     ],
                   ),
                   const SizedBox(height: 16),
 
-                  // Action buttons
+                  // Buttons
                   Row(
                     children: [
                       Expanded(child: _RequestBtn(item: r)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          icon: const Icon(Icons.info_outline, size: 16),
-                          label: const Text('More'),
-                          onPressed: () {},
-                        ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
 
                   // Overview
                   if (r.overview.isNotEmpty) ...[
-                    const Text('Overview',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        )),
+                    const Text(
+                      'Overview',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 6),
-                    Text(r.overview,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
-                          height: 1.5,
-                        )),
+                    Text(
+                      r.overview,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                        height: 1.5,
+                      ),
+                    ),
                   ],
                 ],
               ),
