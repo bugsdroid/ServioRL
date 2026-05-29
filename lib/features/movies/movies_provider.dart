@@ -4,8 +4,6 @@ import '../../core/config/config_provider.dart';
 import '../../core/network/dio_client.dart';
 import 'movie_model.dart';
 
-// ── Repository ────────────────────────────────────────────────────────────────
-
 class MovieRepository {
   final Dio _dio;
   final String _baseUrl;
@@ -44,8 +42,7 @@ class MovieRepository {
     });
   }
 
-  Future<void> deleteMovie(int movieId,
-      {bool deleteFiles = false}) async {
+  Future<void> deleteMovie(int movieId, {bool deleteFiles = false}) async {
     await _dio.delete('/api/v3/movie/$movieId',
         queryParameters: {'deleteFiles': deleteFiles});
   }
@@ -53,22 +50,28 @@ class MovieRepository {
 
 final movieRepositoryProvider = Provider<MovieRepository>((ref) {
   final cfg = ref.watch(appConfigProvider);
-  return MovieRepository(
-    ref.watch(radarrDioProvider),
-    cfg.radarrBaseUrl,
-  );
+  return MovieRepository(ref.watch(radarrDioProvider), cfg.radarrBaseUrl);
 });
 
-// ── Movie list provider ───────────────────────────────────────────────────────
+// ── Notifier ──────────────────────────────────────────────────────────────────
 
 class MoviesNotifier extends AsyncNotifier<List<Movie>> {
   @override
-  Future<List<Movie>> build() => _fetch();
+  Future<List<Movie>> build() async {
+    final cfg = ref.read(appConfigProvider);
+    if (cfg.radarrBaseUrl.isEmpty || cfg.radarrApiKey.isEmpty) return [];
+    return _fetch();
+  }
 
   Future<List<Movie>> _fetch() =>
       ref.read(movieRepositoryProvider).getMovies();
 
   Future<void> refresh() async {
+    final cfg = ref.read(appConfigProvider);
+    if (cfg.radarrBaseUrl.isEmpty || cfg.radarrApiKey.isEmpty) {
+      state = const AsyncData([]);
+      return;
+    }
     state = const AsyncLoading();
     state = await AsyncValue.guard(_fetch);
   }
@@ -89,7 +92,6 @@ final movieFilterProvider = StateProvider<MovieFilter>((ref) => MovieFilter.all)
 final movieSortProvider   = StateProvider<MovieSort>((ref) => MovieSort.title);
 final movieSearchProvider = StateProvider<String>((ref) => '');
 
-// Derived: filtered + sorted list
 final filteredMoviesProvider = Provider<AsyncValue<List<Movie>>>((ref) {
   final all    = ref.watch(moviesProvider);
   final filter = ref.watch(movieFilterProvider);
@@ -98,15 +100,14 @@ final filteredMoviesProvider = Provider<AsyncValue<List<Movie>>>((ref) {
 
   return all.whenData((movies) {
     var list = movies.where((m) {
-      // Text search
-      if (query.isNotEmpty &&
-          !m.title.toLowerCase().contains(query)) return false;
-      // Status filter
+      if (query.isNotEmpty && !m.title.toLowerCase().contains(query)) {
+        return false;
+      }
       return switch (filter) {
-        MovieFilter.all       => true,
-        MovieFilter.downloaded=> m.hasFile,
-        MovieFilter.missing   => !m.hasFile && m.monitored,
-        MovieFilter.monitored => m.monitored,
+        MovieFilter.all        => true,
+        MovieFilter.downloaded => m.hasFile,
+        MovieFilter.missing    => !m.hasFile && m.monitored,
+        MovieFilter.monitored  => m.monitored,
       };
     }).toList();
 
@@ -121,7 +122,7 @@ final filteredMoviesProvider = Provider<AsyncValue<List<Movie>>>((ref) {
   });
 });
 
-// ── Interactive search provider ───────────────────────────────────────────────
+// ── Interactive search ────────────────────────────────────────────────────────
 
 final interactiveSearchProvider =
     FutureProvider.autoDispose.family<List<RadarrRelease>, int>((ref, movieId) {
