@@ -1,9 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/config/config_provider.dart';
 import '../../core/network/dio_client.dart';
 import 'tv_model.dart';
-
-// ── Repository ────────────────────────────────────────────────────────────────
 
 class TvRepository {
   final Dio _dio;
@@ -68,16 +67,25 @@ final tvRepositoryProvider = Provider<TvRepository>((ref) {
   return TvRepository(ref.watch(sonarrDioProvider));
 });
 
-// ── Series list provider ──────────────────────────────────────────────────────
+// ── Notifier ──────────────────────────────────────────────────────────────────
 
 class TvSeriesNotifier extends AsyncNotifier<List<TvSeries>> {
   @override
-  Future<List<TvSeries>> build() => _fetch();
+  Future<List<TvSeries>> build() async {
+    final cfg = ref.read(appConfigProvider);
+    if (cfg.sonarrBaseUrl.isEmpty || cfg.sonarrApiKey.isEmpty) return [];
+    return _fetch();
+  }
 
   Future<List<TvSeries>> _fetch() =>
       ref.read(tvRepositoryProvider).getSeries();
 
   Future<void> refresh() async {
+    final cfg = ref.read(appConfigProvider);
+    if (cfg.sonarrBaseUrl.isEmpty || cfg.sonarrApiKey.isEmpty) {
+      state = const AsyncData([]);
+      return;
+    }
     state = const AsyncLoading();
     state = await AsyncValue.guard(_fetch);
   }
@@ -92,9 +100,9 @@ final tvSeriesProvider =
 enum TvFilter { all, continuing, ended, missing, monitored }
 enum TvSort   { title, year, episodes, network }
 
-final tvFilterProvider   = StateProvider<TvFilter>((ref) => TvFilter.all);
-final tvSortProvider     = StateProvider<TvSort>((ref) => TvSort.title);
-final tvSearchProvider   = StateProvider<String>((ref) => '');
+final tvFilterProvider = StateProvider<TvFilter>((ref) => TvFilter.all);
+final tvSortProvider   = StateProvider<TvSort>((ref) => TvSort.title);
+final tvSearchProvider = StateProvider<String>((ref) => '');
 
 final filteredTvProvider = Provider<AsyncValue<List<TvSeries>>>((ref) {
   final all    = ref.watch(tvSeriesProvider);
@@ -104,8 +112,9 @@ final filteredTvProvider = Provider<AsyncValue<List<TvSeries>>>((ref) {
 
   return all.whenData((series) {
     var list = series.where((s) {
-      if (query.isNotEmpty &&
-          !s.title.toLowerCase().contains(query)) return false;
+      if (query.isNotEmpty && !s.title.toLowerCase().contains(query)) {
+        return false;
+      }
       return switch (filter) {
         TvFilter.all        => true,
         TvFilter.continuing => s.status == SeriesStatus.continuing,
@@ -126,7 +135,7 @@ final filteredTvProvider = Provider<AsyncValue<List<TvSeries>>>((ref) {
   });
 });
 
-// ── Episode provider (per series + season) ────────────────────────────────────
+// ── Episode provider ──────────────────────────────────────────────────────────
 
 final episodeProvider = FutureProvider.autoDispose
     .family<List<Episode>, ({int seriesId, int seasonNumber})>((ref, args) {
@@ -135,7 +144,7 @@ final episodeProvider = FutureProvider.autoDispose
       .getEpisodes(args.seriesId, args.seasonNumber);
 });
 
-// ── Interactive search provider (per episode) ─────────────────────────────────
+// ── Interactive search ────────────────────────────────────────────────────────
 
 final tvInteractiveSearchProvider =
     FutureProvider.autoDispose.family<List<SonarrRelease>, int>((ref, epId) {
