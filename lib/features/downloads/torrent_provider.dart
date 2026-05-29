@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/config/config_provider.dart';
 import '../../core/network/transmission_client.dart';
 import 'torrent_model.dart';
 
-/// Repository: abstraksi antara UI dan TransmissionClient
 class TorrentRepository {
   final TransmissionClient _client;
   TorrentRepository(this._client);
@@ -14,8 +14,8 @@ class TorrentRepository {
         .toList();
   }
 
-  Future<void> start(int id)  => _client.startTorrent(id);
-  Future<void> stop(int id)   => _client.stopTorrent(id);
+  Future<void> start(int id) => _client.startTorrent(id);
+  Future<void> stop(int id)  => _client.stopTorrent(id);
   Future<void> remove(int id, {bool deleteData = false}) =>
       _client.removeTorrent(id, deleteData: deleteData);
 }
@@ -24,16 +24,26 @@ final torrentRepositoryProvider = Provider<TorrentRepository>((ref) {
   return TorrentRepository(ref.watch(transmissionClientProvider));
 });
 
-// ── State: list torrent dengan auto-refresh ──────────────────────────────────
+// ── Notifier ──────────────────────────────────────────────────────────────────
 
 class TorrentNotifier extends AsyncNotifier<List<Torrent>> {
   @override
-  Future<List<Torrent>> build() => _fetch();
+  Future<List<Torrent>> build() async {
+    // Cek config dulu — kalau belum diisi jangan hit API
+    final cfg = ref.read(appConfigProvider);
+    if (cfg.transmissionBaseUrl.isEmpty) return [];
+    return _fetch();
+  }
 
   Future<List<Torrent>> _fetch() =>
       ref.read(torrentRepositoryProvider).getTorrents();
 
   Future<void> refresh() async {
+    final cfg = ref.read(appConfigProvider);
+    if (cfg.transmissionBaseUrl.isEmpty) {
+      state = const AsyncData([]);
+      return;
+    }
     state = const AsyncLoading();
     state = await AsyncValue.guard(_fetch);
   }
