@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../core/config/config_provider.dart';
 import '../../core/theme/app_theme.dart';
 import 'movie_model.dart';
 import 'movies_provider.dart';
@@ -10,78 +11,89 @@ class MoviesScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(filteredMoviesProvider);
+    final cfg      = ref.watch(appConfigProvider);
+    final notReady = cfg.radarrBaseUrl.isEmpty || cfg.radarrApiKey.isEmpty;
+    final state    = ref.watch(filteredMoviesProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: NestedScrollView(
-        headerSliverBuilder: (context, _) => [
-          SliverAppBar(
-            pinned: true,
-            backgroundColor: AppColors.background,
-            title: state.whenOrNull(
-              data: (list) {
-                final all  = ref.watch(moviesProvider).valueOrNull ?? [];
-                final dl   = all.where((m) => m.hasFile).length;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Movies'),
-                    Text('$dl / ${all.length} downloaded',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                        )),
+      body: notReady
+          ? _NotConfigured()
+          : NestedScrollView(
+              headerSliverBuilder: (context, _) => [
+                SliverAppBar(
+                  pinned: true,
+                  backgroundColor: AppColors.background,
+                  title: state.whenOrNull(
+                    data: (list) {
+                      final all = ref.watch(moviesProvider).valueOrNull ?? [];
+                      final dl  = all.where((m) => m.hasFile).length;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Movies'),
+                          Text(
+                            '$dl / ${all.length} downloaded',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ) ?? const Text('Movies'),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.refresh, size: 20),
+                      onPressed: () =>
+                          ref.read(moviesProvider.notifier).refresh(),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.sort_rounded, size: 20),
+                      onPressed: () => _showSortSheet(context, ref),
+                    ),
                   ],
-                );
-              },
-            ) ?? const Text('Movies'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh, size: 20),
-                onPressed: () => ref.read(moviesProvider.notifier).refresh(),
-              ),
-              IconButton(
-                icon: const Icon(Icons.sort_rounded, size: 20),
-                onPressed: () => _showSortSheet(context, ref),
-              ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(100),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: TextField(
-                      onChanged: (v) =>
-                          ref.read(movieSearchProvider.notifier).state = v,
-                      style: const TextStyle(
-                          color: AppColors.textPrimary, fontSize: 14),
-                      decoration: const InputDecoration(
-                        hintText: 'Search library...',
-                        prefixIcon: Icon(Icons.search,
-                            color: AppColors.textDisabled, size: 20),
-                      ),
+                  bottom: PreferredSize(
+                    preferredSize: const Size.fromHeight(100),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: TextField(
+                            onChanged: (v) =>
+                                ref.read(movieSearchProvider.notifier).state = v,
+                            style: const TextStyle(
+                                color: AppColors.textPrimary, fontSize: 14),
+                            decoration: const InputDecoration(
+                              hintText: 'Search library...',
+                              prefixIcon: Icon(Icons.search,
+                                  color: AppColors.textDisabled, size: 20),
+                            ),
+                          ),
+                        ),
+                        _FilterBar(),
+                      ],
                     ),
                   ),
-                  _FilterBar(),
-                ],
+                ),
+              ],
+              body: state.when(
+                loading: () => const Center(
+                    child: CircularProgressIndicator(color: AppColors.teal)),
+                error: (e, _) => _ErrorView(
+                  error: e.toString(),
+                  onRetry: () => ref.read(moviesProvider.notifier).refresh(),
+                ),
+                data: (movies) => movies.isEmpty
+                    ? const Center(
+                        child: Text('Tidak ada film ditemukan',
+                            style:
+                                TextStyle(color: AppColors.textSecondary)))
+                    : _MovieGrid(movies: movies),
               ),
             ),
-          ),
-        ],
-        body: state.when(
-          loading: () => const Center(
-              child: CircularProgressIndicator(color: AppColors.teal)),
-          error: (e, _) => _ErrorView(error: e.toString(), ref: ref),
-          data: (movies) => movies.isEmpty
-              ? const Center(
-                  child: Text('No movies found',
-                      style: TextStyle(color: AppColors.textSecondary)))
-              : _MovieGrid(movies: movies),
-        ),
-      ),
     );
   }
 
@@ -93,6 +105,66 @@ class MoviesScreen extends ConsumerWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => _SortSheet(ref: ref),
+    );
+  }
+}
+
+// ── Not configured ────────────────────────────────────────────────────────────
+
+class _NotConfigured extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        title: const Text('Movies'),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.movie_outlined,
+                    size: 40, color: AppColors.textDisabled),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Radarr belum dikonfigurasi',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Isi Base URL dan API Key Radarr di Settings untuk melihat library film.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                icon: const Icon(Icons.settings_rounded, size: 16),
+                label: const Text('Buka Settings'),
+                onPressed: () => Navigator.of(context).pushNamed('/settings'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -177,7 +249,10 @@ class _MoviePoster extends StatelessWidget {
   Widget build(BuildContext context) {
     final m = movie;
     return GestureDetector(
-      onTap: () => _openDetail(context, m),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => MovieDetailScreen(movie: m)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -211,12 +286,14 @@ class _MoviePoster extends StatelessWidget {
                             ],
                           ),
                         ),
-                        child: Text(m.quality,
-                            style: const TextStyle(
-                              color: AppColors.teal,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                            )),
+                        child: Text(
+                          m.quality,
+                          style: const TextStyle(
+                            color: AppColors.teal,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
                   if (!m.hasFile && m.monitored)
@@ -229,12 +306,14 @@ class _MoviePoster extends StatelessWidget {
                           color: AppColors.error.withOpacity(0.9),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Text('Missing',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                            )),
+                        child: const Text(
+                          'Missing',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
                 ],
@@ -242,17 +321,21 @@ class _MoviePoster extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 5),
-          Text(m.title,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
-          Text(m.year > 0 ? m.year.toString() : '',
-              style: const TextStyle(
-                  color: AppColors.textDisabled, fontSize: 10)),
+          Text(
+            m.title,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            m.year > 0 ? m.year.toString() : '',
+            style: const TextStyle(
+                color: AppColors.textDisabled, fontSize: 10),
+          ),
         ],
       ),
     );
@@ -268,22 +351,17 @@ class _MoviePoster extends StatelessWidget {
             const SizedBox(height: 6),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: Text(m.title,
-                  style: const TextStyle(
-                      color: AppColors.textDisabled, fontSize: 10),
-                  textAlign: TextAlign.center,
-                  maxLines: 2),
+              child: Text(
+                m.title,
+                style: const TextStyle(
+                    color: AppColors.textDisabled, fontSize: 10),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+              ),
             ),
           ],
         ),
       );
-
-  void _openDetail(BuildContext context, Movie m) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => MovieDetailScreen(movie: m)),
-    );
-  }
 }
 
 // ── Sort sheet ────────────────────────────────────────────────────────────────
@@ -308,18 +386,22 @@ class _SortSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Sort by',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              )),
+          const Text(
+            'Sort by',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 12),
           ...MovieSort.values.map((s) => ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(options[s]!,
-                    style: const TextStyle(
-                        color: AppColors.textPrimary, fontSize: 14)),
+                title: Text(
+                  options[s]!,
+                  style: const TextStyle(
+                      color: AppColors.textPrimary, fontSize: 14),
+                ),
                 trailing: s == current
                     ? const Icon(Icons.check, color: AppColors.teal)
                     : null,
@@ -338,8 +420,8 @@ class _SortSheet extends StatelessWidget {
 
 class _ErrorView extends StatelessWidget {
   final String error;
-  final WidgetRef ref;
-  const _ErrorView({required this.error, required this.ref});
+  final VoidCallback onRetry;
+  const _ErrorView({required this.error, required this.onRetry});
 
   @override
   Widget build(BuildContext context) => Center(
@@ -351,24 +433,28 @@ class _ErrorView extends StatelessWidget {
               const Icon(Icons.wifi_off_rounded,
                   size: 48, color: AppColors.error),
               const SizedBox(height: 16),
-              const Text('Cannot connect to Radarr',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  )),
+              const Text(
+                'Gagal terhubung ke Radarr',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 8),
-              Text(error,
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12),
-                  textAlign: TextAlign.center,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis),
+              Text(
+                error,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
               const SizedBox(height: 24),
               FilledButton.icon(
                 icon: const Icon(Icons.refresh, size: 16),
                 label: const Text('Retry'),
-                onPressed: () => ref.read(moviesProvider.notifier).refresh(),
+                onPressed: onRetry,
               ),
             ],
           ),
@@ -392,13 +478,11 @@ class MovieDetailScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       body: CustomScrollView(
         slivers: [
-          // ── Fanart header ──────────────────────────────────────────
           SliverAppBar(
             expandedHeight: 220,
             pinned: true,
             backgroundColor: AppColors.background,
             flexibleSpace: FlexibleSpaceBar(
-              // fixed: removed duplicate background, now single Stack with gradient
               background: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -412,7 +496,6 @@ class MovieDetailScreen extends ConsumerWidget {
                               Container(color: AppColors.surfaceVariant),
                         )
                       : Container(color: AppColors.surfaceVariant),
-                  // Gradient overlay bottom
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -435,18 +518,18 @@ class MovieDetailScreen extends ConsumerWidget {
               ),
             ],
           ),
-
-          // ── Content ────────────────────────────────────────────────
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                Text(m.title,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                    )),
+                Text(
+                  m.title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Wrap(
                   spacing: 8,
@@ -473,11 +556,14 @@ class MovieDetailScreen extends ConsumerWidget {
                         const Icon(Icons.check_circle_rounded,
                             color: AppColors.teal, size: 14),
                         const SizedBox(width: 6),
-                        Text('${m.quality}  •  ${m.sizeStr}',
-                            style: const TextStyle(
-                                color: AppColors.teal,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600)),
+                        Text(
+                          '${m.quality}  •  ${m.sizeStr}',
+                          style: const TextStyle(
+                            color: AppColors.teal,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
                   )
@@ -495,11 +581,14 @@ class MovieDetailScreen extends ConsumerWidget {
                         Icon(Icons.warning_amber_rounded,
                             color: AppColors.error, size: 14),
                         SizedBox(width: 6),
-                        Text('Missing',
-                            style: TextStyle(
-                                color: AppColors.error,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600)),
+                        Text(
+                          'Missing',
+                          style: TextStyle(
+                            color: AppColors.error,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -527,8 +616,9 @@ class MovieDetailScreen extends ConsumerWidget {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                  content: Text(
-                                      'Auto search started for ${m.title}')),
+                                content: Text(
+                                    'Auto search dimulai untuk ${m.title}'),
+                              ),
                             );
                           }
                         },
@@ -551,36 +641,44 @@ class MovieDetailScreen extends ConsumerWidget {
                                 border: Border.all(
                                     color: AppColors.border, width: 0.5),
                               ),
-                              child: Text(g,
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 11,
-                                  )),
+                              child: Text(
+                                g,
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 11,
+                                ),
+                              ),
                             ))
                         .toList(),
                   ),
                   const SizedBox(height: 16),
                 ],
                 if (m.overview.isNotEmpty) ...[
-                  const Text('Overview',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      )),
+                  const Text(
+                    'Overview',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  Text(m.overview,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
-                        height: 1.6,
-                      )),
+                  Text(
+                    m.overview,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                      height: 1.6,
+                    ),
+                  ),
                 ],
                 if (m.studio.isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  Text('Studio: ${m.studio}',
-                      style: const TextStyle(
-                          color: AppColors.textDisabled, fontSize: 12)),
+                  Text(
+                    'Studio: ${m.studio}',
+                    style: const TextStyle(
+                        color: AppColors.textDisabled, fontSize: 12),
+                  ),
                 ],
               ]),
             ),
@@ -590,12 +688,19 @@ class MovieDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _meta(String text) => Text(text,
-      style: const TextStyle(color: AppColors.textSecondary, fontSize: 13));
+  Widget _meta(String text) => Text(
+        text,
+        style: const TextStyle(
+            color: AppColors.textSecondary, fontSize: 13),
+      );
 
-  void _openInteractiveSearch(BuildContext context, WidgetRef ref, Movie m) {
-    Navigator.push(context,
-        MaterialPageRoute(builder: (_) => InteractiveSearchScreen(movie: m)));
+  void _openInteractiveSearch(
+      BuildContext context, WidgetRef ref, Movie m) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) => InteractiveSearchScreen(movie: m)),
+    );
   }
 
   void _showActions(BuildContext context, WidgetRef ref, Movie m) {
@@ -625,7 +730,8 @@ class _MovieActionsSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            leading: const Icon(Icons.search_rounded, color: AppColors.teal),
+            leading:
+                const Icon(Icons.search_rounded, color: AppColors.teal),
             title: const Text('Interactive Search',
                 style: TextStyle(color: AppColors.textPrimary)),
             onTap: () {
@@ -641,30 +747,34 @@ class _MovieActionsSheet extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.delete_outline_rounded,
                 color: AppColors.error),
-            title: const Text('Remove Movie',
+            title: const Text('Hapus Film',
                 style: TextStyle(color: AppColors.error)),
             onTap: () async {
               Navigator.pop(context);
               final confirm = await showDialog<bool>(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  title: const Text('Remove Movie?'),
+                  backgroundColor: AppColors.surface,
+                  title: const Text('Hapus Film?'),
                   content: Text(movie.title),
                   actions: [
                     TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel')),
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Batal'),
+                    ),
                     FilledButton(
                       style: FilledButton.styleFrom(
                           backgroundColor: AppColors.error),
                       onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('Remove'),
+                      child: const Text('Hapus'),
                     ),
                   ],
                 ),
               );
               if (confirm == true) {
-                await ref.read(movieRepositoryProvider).deleteMovie(movie.id);
+                await ref
+                    .read(movieRepositoryProvider)
+                    .deleteMovie(movie.id);
                 await ref.read(moviesProvider.notifier).refresh();
                 if (context.mounted) Navigator.pop(context);
               }
@@ -695,12 +805,14 @@ class InteractiveSearchScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Interactive Search'),
-            Text(movie.title,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                )),
+            Text(
+              movie.title,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
           ],
         ),
       ),
@@ -708,31 +820,39 @@ class InteractiveSearchScreen extends ConsumerWidget {
         loading: () => const Center(
             child: CircularProgressIndicator(color: AppColors.teal)),
         error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.search_off_rounded,
-                  size: 48, color: AppColors.textDisabled),
-              const SizedBox(height: 12),
-              Text('Search failed: $e',
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.search_off_rounded,
+                    size: 48, color: AppColors.textDisabled),
+                const SizedBox(height: 12),
+                Text(
+                  'Gagal: $e',
                   style: const TextStyle(
                       color: AppColors.textSecondary, fontSize: 13),
-                  textAlign: TextAlign.center),
-            ],
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         ),
         data: (releases) {
           if (releases.isEmpty) {
             return const Center(
-              child: Text('No releases found',
+              child: Text('Tidak ada release ditemukan',
                   style: TextStyle(color: AppColors.textSecondary)),
             );
           }
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
             itemCount: releases.length,
-            itemBuilder: (ctx, i) =>
-                _ReleaseCard(release: releases[i], movie: movie, ref: ref),
+            itemBuilder: (ctx, i) => _ReleaseCard(
+              release: releases[i],
+              movie: movie,
+              ref: ref,
+            ),
           );
         },
       ),
@@ -770,7 +890,7 @@ class _ReleaseCardState extends State<_ReleaseCard> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Release grabbed!')),
+          const SnackBar(content: Text('Release berhasil di-grab!')),
         );
       }
     } catch (e) {
@@ -778,8 +898,9 @@ class _ReleaseCardState extends State<_ReleaseCard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Failed: $e'),
-              backgroundColor: AppColors.error),
+            content: Text('Gagal: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     }
@@ -793,7 +914,9 @@ class _ReleaseCardState extends State<_ReleaseCard> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: r.rejected ? AppColors.card.withOpacity(0.5) : AppColors.card,
+        color: r.rejected
+            ? AppColors.card.withOpacity(0.5)
+            : AppColors.card,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: r.rejected
@@ -809,16 +932,18 @@ class _ReleaseCardState extends State<_ReleaseCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(r.title,
-                    style: TextStyle(
-                      color: r.rejected
-                          ? AppColors.textDisabled
-                          : AppColors.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
+                child: Text(
+                  r.title,
+                  style: TextStyle(
+                    color: r.rejected
+                        ? AppColors.textDisabled
+                        : AppColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(width: 8),
               if (!r.rejected)
@@ -839,7 +964,8 @@ class _ReleaseCardState extends State<_ReleaseCard> {
                             height: 14,
                             child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppColors.background))
+                                color: AppColors.background),
+                          )
                         : Text(
                             _grabbed ? 'Grabbed' : 'Grab',
                             style: TextStyle(
@@ -873,15 +999,19 @@ class _ReleaseCardState extends State<_ReleaseCard> {
               ),
               _stat(Icons.schedule_rounded, '${r.age}d',
                   AppColors.textSecondary),
-              _stat(Icons.source_rounded, r.indexer, AppColors.textDisabled),
+              _stat(Icons.source_rounded, r.indexer,
+                  AppColors.textDisabled),
             ],
           ),
           if (r.rejections.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(r.rejections.join(' • '),
-                style: const TextStyle(color: AppColors.error, fontSize: 10),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis),
+            Text(
+              r.rejections.join(' • '),
+              style:
+                  const TextStyle(color: AppColors.error, fontSize: 10),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ],
       ),
@@ -893,11 +1023,14 @@ class _ReleaseCardState extends State<_ReleaseCard> {
         children: [
           Icon(icon, size: 12, color: color),
           const SizedBox(width: 3),
-          Text(label,
-              style: TextStyle(
-                  color: color,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500)),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       );
 }
