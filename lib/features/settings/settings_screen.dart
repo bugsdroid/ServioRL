@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 import '../../core/config/config_provider.dart';
 import '../../core/config/app_config.dart';
@@ -21,7 +22,6 @@ class _ServiceTester {
   }) async {
     if (baseUrl.trim().isEmpty) return 'URL kosong';
 
-    // Normalize URL — hapus trailing slash
     final url = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
 
     try {
@@ -60,20 +60,16 @@ class _ServiceTester {
           if (apiKey.trim().isEmpty) return 'API Key kosong';
           final res = await dio.get(
             '$url/api/system/status',
-            options: Options(
-              headers: {'X-Api-Key': apiKey.trim()},
-            ),
+            options: Options(headers: {'X-Api-Key': apiKey.trim()}),
           );
           if (res.statusCode == 200) return 'OK';
           return 'Response ${res.statusCode}';
 
         case 'transmission':
-          // Transmission pakai Basic Auth + RPC
           String sessionId = '';
           String? basicAuth;
           if ((username ?? '').isNotEmpty) {
-            final cred = '$username:$password';
-            basicAuth = 'Basic ${_b64(cred)}';
+            basicAuth = 'Basic ${_b64('$username:$password')}';
           }
           final headers = <String, dynamic>{
             'Content-Type': 'application/json',
@@ -88,8 +84,7 @@ class _ServiceTester {
           } on DioException catch (e) {
             if (e.response?.statusCode == 409) {
               sessionId = e.response?.headers
-                      .value('x-transmission-session-id') ??
-                  '';
+                      .value('x-transmission-session-id') ?? '';
               final res2 = await dio.post(
                 '$url/transmission/rpc',
                 data: {'method': 'session-get'},
@@ -99,8 +94,7 @@ class _ServiceTester {
                 }),
               );
               if (res2.statusCode == 200) {
-                final ver =
-                    res2.data['arguments']?['version'] ?? '?';
+                final ver = res2.data['arguments']?['version'] ?? '?';
                 return 'OK — v$ver';
               }
             }
@@ -139,8 +133,7 @@ class _ServiceTester {
       final b2 = i + 2 < bytes.length ? bytes[i + 2] : 0;
       result += chars[b0 >> 2];
       result += chars[((b0 & 3) << 4) | (b1 >> 4)];
-      result +=
-          i + 1 < bytes.length ? chars[((b1 & 15) << 2) | (b2 >> 6)] : '=';
+      result += i + 1 < bytes.length ? chars[((b1 & 15) << 2) | (b2 >> 6)] : '=';
       result += i + 2 < bytes.length ? chars[b2 & 63] : '=';
     }
     return result;
@@ -176,7 +169,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Settings disimpan')),
         );
-        Navigator.of(context).pop();
+        // Pakai GoRouter pop — bukan Navigator
+        context.pop();
       }
     }
   }
@@ -205,19 +199,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ── Header ──────────────────────────────────────────────
             _sectionHeader('Connections'),
             const SizedBox(height: 4),
-            Text(
-              'Isi Base URL dan API Key lalu tekan tombol Test untuk verifikasi koneksi.',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-              ),
+            const Text(
+              'Isi Base URL dan API Key lalu tekan Test untuk verifikasi koneksi.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
             ),
             const SizedBox(height: 16),
 
-            // ── Seerr ────────────────────────────────────────────────
             _ServiceTile(
               service: 'seerr',
               name: 'Seerr',
@@ -229,11 +218,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               urlHint: 'http://100.x.x.x:5055',
               onUrlSaved: (v) => _draft = _draft.copyWith(seerrBaseUrl: v),
               onKeySaved: (v) => _draft = _draft.copyWith(seerrApiKey: v),
-              getDraft: () => _draft,
             ),
             const SizedBox(height: 10),
 
-            // ── Sonarr ───────────────────────────────────────────────
             _ServiceTile(
               service: 'sonarr',
               name: 'Sonarr',
@@ -245,11 +232,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               urlHint: 'http://100.x.x.x:8989',
               onUrlSaved: (v) => _draft = _draft.copyWith(sonarrBaseUrl: v),
               onKeySaved: (v) => _draft = _draft.copyWith(sonarrApiKey: v),
-              getDraft: () => _draft,
             ),
             const SizedBox(height: 10),
 
-            // ── Radarr ───────────────────────────────────────────────
             _ServiceTile(
               service: 'radarr',
               name: 'Radarr',
@@ -261,26 +246,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               urlHint: 'http://100.x.x.x:7878',
               onUrlSaved: (v) => _draft = _draft.copyWith(radarrBaseUrl: v),
               onKeySaved: (v) => _draft = _draft.copyWith(radarrApiKey: v),
-              getDraft: () => _draft,
             ),
             const SizedBox(height: 10),
 
-            // ── Transmission ─────────────────────────────────────────
             _TransmissionTile(
               urlInitial: _draft.transmissionBaseUrl,
               userInitial: _draft.transmissionUsername,
               passInitial: _draft.transmissionPassword,
-              onUrlSaved: (v) =>
-                  _draft = _draft.copyWith(transmissionBaseUrl: v),
-              onUserSaved: (v) =>
-                  _draft = _draft.copyWith(transmissionUsername: v),
-              onPassSaved: (v) =>
-                  _draft = _draft.copyWith(transmissionPassword: v),
-              getDraft: () => _draft,
+              onUrlSaved: (v) => _draft = _draft.copyWith(transmissionBaseUrl: v),
+              onUserSaved: (v) => _draft = _draft.copyWith(transmissionUsername: v),
+              onPassSaved: (v) => _draft = _draft.copyWith(transmissionPassword: v),
             ),
             const SizedBox(height: 10),
 
-            // ── Bazarr ───────────────────────────────────────────────
             _ServiceTile(
               service: 'bazarr',
               name: 'Bazarr',
@@ -292,20 +270,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               urlHint: 'http://100.x.x.x:6767',
               onUrlSaved: (v) => _draft = _draft.copyWith(bazarrBaseUrl: v),
               onKeySaved: (v) => _draft = _draft.copyWith(bazarrApiKey: v),
-              getDraft: () => _draft,
             ),
 
-            // ── General ──────────────────────────────────────────────
             const SizedBox(height: 28),
             _sectionHeader('General'),
             const SizedBox(height: 10),
-            _generalTile(Icons.palette_outlined, 'Appearance', 'System'),
+            _generalTile(Icons.palette_outlined, 'Appearance', 'Dark'),
             const SizedBox(height: 1),
-            _generalTile(
-                Icons.notifications_outlined, 'Notifications', ''),
+            _generalTile(Icons.notifications_outlined, 'Notifications', ''),
             const SizedBox(height: 1),
-            _generalTile(
-                Icons.info_outline_rounded, 'About', 'ServioRL v0.1.0'),
+            _generalTile(Icons.info_outline_rounded, 'About', 'ServioRL v0.1.0'),
             const SizedBox(height: 32),
           ],
         ),
@@ -334,11 +308,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           borderRadius: BorderRadius.circular(10),
         ),
         child: ListTile(
-          leading:
-              Icon(icon, color: AppColors.textSecondary, size: 20),
+          leading: Icon(icon, color: AppColors.textSecondary, size: 20),
           title: Text(title,
-              style: const TextStyle(
-                  color: AppColors.textPrimary, fontSize: 14)),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -356,7 +328,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// SERVICE TILE — dengan real connection test
+// SERVICE TILE
 // ══════════════════════════════════════════════════════════════════════════════
 
 class _ServiceTile extends StatefulWidget {
@@ -370,7 +342,6 @@ class _ServiceTile extends StatefulWidget {
   final String urlHint;
   final void Function(String) onUrlSaved;
   final void Function(String) onKeySaved;
-  final AppConfig Function() getDraft;
 
   const _ServiceTile({
     required this.service,
@@ -383,7 +354,6 @@ class _ServiceTile extends StatefulWidget {
     required this.urlHint,
     required this.onUrlSaved,
     required this.onKeySaved,
-    required this.getDraft,
   });
 
   @override
@@ -403,9 +373,7 @@ class _ServiceTileState extends State<_ServiceTile> {
     super.initState();
     _urlCtrl = TextEditingController(text: widget.urlInitial);
     _keyCtrl = TextEditingController(text: widget.keyInitial);
-
     if (widget.urlInitial.isNotEmpty && widget.keyInitial.isNotEmpty) {
-      _status = ConnStatus.idle;
       _statusMsg = 'Belum di-test';
     }
   }
@@ -420,18 +388,15 @@ class _ServiceTileState extends State<_ServiceTile> {
   Future<void> _test() async {
     widget.onUrlSaved(_urlCtrl.text);
     widget.onKeySaved(_keyCtrl.text);
-
     setState(() {
       _status = ConnStatus.testing;
       _statusMsg = 'Testing...';
     });
-
     final result = await _ServiceTester.test(
       service: widget.service,
       baseUrl: _urlCtrl.text,
       apiKey: _keyCtrl.text,
     );
-
     setState(() {
       _status = result.startsWith('OK') ? ConnStatus.ok : ConnStatus.fail;
       _statusMsg = result;
@@ -457,13 +422,11 @@ class _ServiceTileState extends State<_ServiceTile> {
       ),
       child: Column(
         children: [
-          // ── Header row ─────────────────────────────────────────────
           InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(
                 children: [
                   Container(
@@ -472,32 +435,27 @@ class _ServiceTileState extends State<_ServiceTile> {
                       color: widget.color.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child:
-                        Icon(widget.icon, color: widget.color, size: 18),
+                    child: Icon(widget.icon, color: widget.color, size: 18),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          widget.name,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        if (_urlCtrl.text.isNotEmpty)
-                          Text(
-                            _urlCtrl.text,
+                        Text(widget.name,
                             style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 11,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                              color: AppColors.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            )),
+                        if (_urlCtrl.text.isNotEmpty)
+                          Text(_urlCtrl.text,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
@@ -514,12 +472,10 @@ class _ServiceTileState extends State<_ServiceTile> {
               ),
             ),
           ),
-
-          // ── Expanded: form + test button ───────────────────────────
           if (_expanded) ...[
             const Divider(height: 0, indent: 14, endIndent: 14),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
               child: Column(
                 children: [
                   TextFormField(
@@ -527,38 +483,26 @@ class _ServiceTileState extends State<_ServiceTile> {
                     style: const TextStyle(
                         color: AppColors.textPrimary, fontSize: 13),
                     decoration: InputDecoration(
-                      labelText: 'Base URL',
-                      hintText: widget.urlHint,
-                    ),
+                        labelText: 'Base URL', hintText: widget.urlHint),
                     onSaved: (v) => widget.onUrlSaved(v ?? ''),
-                    onChanged: (_) {
-                      if (_status != ConnStatus.idle) {
-                        setState(() {
-                          _status = ConnStatus.idle;
-                          _statusMsg = '';
-                        });
-                      }
-                    },
+                    onChanged: (_) => setState(() {
+                      _status = ConnStatus.idle;
+                      _statusMsg = '';
+                    }),
                   ),
                   const SizedBox(height: 10),
                   TextFormField(
                     controller: _keyCtrl,
                     style: const TextStyle(
                         color: AppColors.textPrimary, fontSize: 13),
-                    decoration: InputDecoration(
-                        labelText: widget.keyLabel),
+                    decoration: InputDecoration(labelText: widget.keyLabel),
                     onSaved: (v) => widget.onKeySaved(v ?? ''),
-                    onChanged: (_) {
-                      if (_status != ConnStatus.idle) {
-                        setState(() {
-                          _status = ConnStatus.idle;
-                          _statusMsg = '';
-                        });
-                      }
-                    },
+                    onChanged: (_) => setState(() {
+                      _status = ConnStatus.idle;
+                      _statusMsg = '';
+                    }),
                   ),
                   const SizedBox(height: 14),
-
                   if (_statusMsg.isNotEmpty && _status != ConnStatus.testing)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
@@ -588,31 +532,21 @@ class _ServiceTileState extends State<_ServiceTile> {
                         ],
                       ),
                     ),
-
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       icon: _status == ConnStatus.testing
                           ? const SizedBox(
-                              width: 14,
-                              height: 14,
+                              width: 14, height: 14,
                               child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.teal,
-                              ),
-                            )
+                                  strokeWidth: 2, color: AppColors.teal))
                           : const Icon(Icons.cable_rounded, size: 16),
-                      label: Text(
-                        _status == ConnStatus.testing
-                            ? 'Testing...'
-                            : 'Test Connection',
-                      ),
-                      onPressed: _status == ConnStatus.testing
-                          ? null
-                          : _test,
+                      label: Text(_status == ConnStatus.testing
+                          ? 'Testing...'
+                          : 'Test Connection'),
+                      onPressed: _status == ConnStatus.testing ? null : _test,
                     ),
                   ),
-                  const SizedBox(height: 14),
                 ],
               ),
             ),
@@ -634,7 +568,6 @@ class _TransmissionTile extends StatefulWidget {
   final void Function(String) onUrlSaved;
   final void Function(String) onUserSaved;
   final void Function(String) onPassSaved;
-  final AppConfig Function() getDraft;
 
   const _TransmissionTile({
     required this.urlInitial,
@@ -643,7 +576,6 @@ class _TransmissionTile extends StatefulWidget {
     required this.onUrlSaved,
     required this.onUserSaved,
     required this.onPassSaved,
-    required this.getDraft,
   });
 
   @override
@@ -663,7 +595,7 @@ class _TransmissionTileState extends State<_TransmissionTile> {
   @override
   void initState() {
     super.initState();
-    _urlCtrl = TextEditingController(text: widget.urlInitial);
+    _urlCtrl  = TextEditingController(text: widget.urlInitial);
     _userCtrl = TextEditingController(text: widget.userInitial);
     _passCtrl = TextEditingController(text: widget.passInitial);
   }
@@ -680,34 +612,27 @@ class _TransmissionTileState extends State<_TransmissionTile> {
     widget.onUrlSaved(_urlCtrl.text);
     widget.onUserSaved(_userCtrl.text);
     widget.onPassSaved(_passCtrl.text);
-
     setState(() {
       _status = ConnStatus.testing;
       _statusMsg = 'Testing...';
     });
-
     final result = await _ServiceTester.test(
-      service: 'transmission',
-      baseUrl: _urlCtrl.text,
-      apiKey: '',
+      service:  'transmission',
+      baseUrl:  _urlCtrl.text,
+      apiKey:   '',
       username: _userCtrl.text,
       password: _passCtrl.text,
     );
-
     setState(() {
       _status = result.startsWith('OK') ? ConnStatus.ok : ConnStatus.fail;
       _statusMsg = result;
     });
   }
 
-  void _resetStatus() {
-    if (_status != ConnStatus.idle) {
-      setState(() {
+  void _reset() => setState(() {
         _status = ConnStatus.idle;
         _statusMsg = '';
       });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -732,8 +657,7 @@ class _TransmissionTileState extends State<_TransmissionTile> {
             borderRadius: BorderRadius.circular(12),
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(
                 children: [
                   Container(
@@ -750,24 +674,20 @@ class _TransmissionTileState extends State<_TransmissionTile> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Transmission',
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                        const Text('Transmission',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            )),
                         if (_urlCtrl.text.isNotEmpty)
-                          Text(
-                            _urlCtrl.text,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 11,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          Text(_urlCtrl.text,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
@@ -787,7 +707,7 @@ class _TransmissionTileState extends State<_TransmissionTile> {
           if (_expanded) ...[
             const Divider(height: 0, indent: 14, endIndent: 14),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -804,11 +724,9 @@ class _TransmissionTileState extends State<_TransmissionTile> {
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Username & password opsional — isi jika kamu mengaktifkan auth di Transmission.',
+                            'Username & password opsional — isi jika auth diaktifkan di Transmission.',
                             style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 11,
-                            ),
+                                color: AppColors.textSecondary, fontSize: 11),
                           ),
                         ),
                       ],
@@ -820,22 +738,20 @@ class _TransmissionTileState extends State<_TransmissionTile> {
                     style: const TextStyle(
                         color: AppColors.textPrimary, fontSize: 13),
                     decoration: const InputDecoration(
-                      labelText: 'Base URL',
-                      hintText: 'http://100.x.x.x:9091',
-                    ),
+                        labelText: 'Base URL',
+                        hintText: 'http://100.x.x.x:9091'),
                     onSaved: (v) => widget.onUrlSaved(v ?? ''),
-                    onChanged: (_) => _resetStatus(),
+                    onChanged: (_) => _reset(),
                   ),
                   const SizedBox(height: 10),
                   TextFormField(
                     controller: _userCtrl,
                     style: const TextStyle(
                         color: AppColors.textPrimary, fontSize: 13),
-                    decoration: const InputDecoration(
-                      labelText: 'Username (opsional)',
-                    ),
+                    decoration:
+                        const InputDecoration(labelText: 'Username (opsional)'),
                     onSaved: (v) => widget.onUserSaved(v ?? ''),
-                    onChanged: (_) => _resetStatus(),
+                    onChanged: (_) => _reset(),
                   ),
                   const SizedBox(height: 10),
                   TextFormField(
@@ -858,11 +774,10 @@ class _TransmissionTileState extends State<_TransmissionTile> {
                       ),
                     ),
                     onSaved: (v) => widget.onPassSaved(v ?? ''),
-                    onChanged: (_) => _resetStatus(),
+                    onChanged: (_) => _reset(),
                   ),
                   const SizedBox(height: 14),
-                  if (_statusMsg.isNotEmpty &&
-                      _status != ConnStatus.testing)
+                  if (_statusMsg.isNotEmpty && _status != ConnStatus.testing)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: Row(
@@ -896,24 +811,16 @@ class _TransmissionTileState extends State<_TransmissionTile> {
                     child: OutlinedButton.icon(
                       icon: _status == ConnStatus.testing
                           ? const SizedBox(
-                              width: 14,
-                              height: 14,
+                              width: 14, height: 14,
                               child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.teal,
-                              ),
-                            )
+                                  strokeWidth: 2, color: AppColors.teal))
                           : const Icon(Icons.cable_rounded, size: 16),
-                      label: Text(
-                        _status == ConnStatus.testing
-                            ? 'Testing...'
-                            : 'Test Connection',
-                      ),
-                      onPressed:
-                          _status == ConnStatus.testing ? null : _test,
+                      label: Text(_status == ConnStatus.testing
+                          ? 'Testing...'
+                          : 'Test Connection'),
+                      onPressed: _status == ConnStatus.testing ? null : _test,
                     ),
                   ),
-                  const SizedBox(height: 14),
                 ],
               ),
             ),
@@ -925,41 +832,36 @@ class _TransmissionTileState extends State<_TransmissionTile> {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// STATUS BADGE WIDGET
+// STATUS BADGE
 // ══════════════════════════════════════════════════════════════════════════════
 
 class _StatusBadge extends StatelessWidget {
   final ConnStatus status;
   final String message;
-
   const _StatusBadge({required this.status, required this.message});
 
   @override
   Widget build(BuildContext context) {
     switch (status) {
       case ConnStatus.idle:
-        final hasData = message == 'Belum di-test';
         return Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
             color: AppColors.surfaceVariant,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
-            hasData ? 'Belum di-test' : 'Setup',
+            message == 'Belum di-test' ? 'Belum di-test' : 'Setup',
             style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-            ),
+                color: AppColors.textSecondary,
+                fontSize: 11,
+                fontWeight: FontWeight.w500),
           ),
         );
 
       case ConnStatus.testing:
         return Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
             color: AppColors.surfaceVariant,
             borderRadius: BorderRadius.circular(20),
@@ -968,30 +870,23 @@ class _StatusBadge extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               SizedBox(
-                width: 10,
-                height: 10,
+                width: 10, height: 10,
                 child: CircularProgressIndicator(
-                  strokeWidth: 1.5,
-                  color: AppColors.teal,
-                ),
+                    strokeWidth: 1.5, color: AppColors.teal),
               ),
               SizedBox(width: 5),
-              Text(
-                'Testing',
-                style: TextStyle(
-                  color: AppColors.teal,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              Text('Testing',
+                  style: TextStyle(
+                      color: AppColors.teal,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500)),
             ],
           ),
         );
 
       case ConnStatus.ok:
         return Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
             color: AppColors.tealSurface,
             borderRadius: BorderRadius.circular(20),
@@ -999,25 +894,20 @@ class _StatusBadge extends StatelessWidget {
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.check_circle_rounded,
-                  size: 12, color: AppColors.teal),
+              Icon(Icons.check_circle_rounded, size: 12, color: AppColors.teal),
               SizedBox(width: 4),
-              Text(
-                'Connected',
-                style: TextStyle(
-                  color: AppColors.teal,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              Text('Connected',
+                  style: TextStyle(
+                      color: AppColors.teal,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500)),
             ],
           ),
         );
 
       case ConnStatus.fail:
         return Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
             color: AppColors.error.withOpacity(0.15),
             borderRadius: BorderRadius.circular(20),
@@ -1025,17 +915,13 @@ class _StatusBadge extends StatelessWidget {
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_rounded,
-                  size: 12, color: AppColors.error),
+              Icon(Icons.error_rounded, size: 12, color: AppColors.error),
               SizedBox(width: 4),
-              Text(
-                'Failed',
-                style: TextStyle(
-                  color: AppColors.error,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              Text('Failed',
+                  style: TextStyle(
+                      color: AppColors.error,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500)),
             ],
           ),
         );
