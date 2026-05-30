@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/config/config_provider.dart';
 import '../../core/theme/app_theme.dart';
 import 'subtitle_model.dart';
 import 'subtitles_provider.dart';
 
-// ── Language options yang sering dipakai ──────────────────────────────────────
 const _kLanguages = [
   (code: 'en', name: 'English'),
   (code: 'id', name: 'Indonesian'),
@@ -16,61 +16,125 @@ const _kLanguages = [
   (code: 'de', name: 'German'),
 ];
 
-// ══════════════════════════════════════════════════════════════════════════════
-// SUBTITLES SCREEN
-// ══════════════════════════════════════════════════════════════════════════════
-
 class SubtitlesScreen extends ConsumerWidget {
   const SubtitlesScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(filteredSubtitlesProvider);
+    final cfg      = ref.watch(appConfigProvider);
+    final notReady = cfg.bazarrBaseUrl.isEmpty || cfg.bazarrApiKey.isEmpty;
+    final state    = ref.watch(filteredSubtitlesProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: NestedScrollView(
-        headerSliverBuilder: (context, _) => [
-          SliverAppBar(
-            pinned: true,
-            backgroundColor: AppColors.background,
-            title: state.whenOrNull(
-              data: (list) {
-                final all = ref.watch(missingSubtitlesProvider).valueOrNull ?? [];
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Subtitles'),
-                    Text('${all.length} missing',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                        )),
+      body: notReady
+          ? _NotConfigured()
+          : NestedScrollView(
+              headerSliverBuilder: (context, _) => [
+                SliverAppBar(
+                  pinned: true,
+                  backgroundColor: AppColors.background,
+                  title: state.whenOrNull(
+                    data: (list) {
+                      final all =
+                          ref.watch(missingSubtitlesProvider).valueOrNull ?? [];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Subtitles'),
+                          Text(
+                            '${all.length} missing',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ) ?? const Text('Subtitles'),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.refresh, size: 20),
+                      onPressed: () =>
+                          ref.read(missingSubtitlesProvider.notifier).refresh(),
+                    ),
                   ],
-                );
-              },
-            ) ?? const Text('Subtitles'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh, size: 20),
+                  bottom: PreferredSize(
+                    preferredSize: const Size.fromHeight(44),
+                    child: _FilterBar(),
+                  ),
+                ),
+              ],
+              body: state.when(
+                loading: () => const Center(
+                    child: CircularProgressIndicator(color: AppColors.teal)),
+                error: (e, _) => _ErrorView(error: e.toString(), ref: ref),
+                data: (items) => items.isEmpty
+                    ? _EmptyView()
+                    : _SubtitleList(items: items),
+              ),
+            ),
+    );
+  }
+}
+
+// ── Not configured ────────────────────────────────────────────────────────────
+
+class _NotConfigured extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        title: const Text('Subtitles'),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.subtitles_outlined,
+                    size: 40, color: AppColors.textDisabled),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Bazarr belum dikonfigurasi',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Isi Base URL dan API Key Bazarr di Settings untuk mencari subtitle yang hilang.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                icon: const Icon(Icons.settings_rounded, size: 16),
+                label: const Text('Buka Settings'),
                 onPressed: () =>
-                    ref.read(missingSubtitlesProvider.notifier).refresh(),
+                    Navigator.of(context).pushNamed('/settings'),
               ),
             ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(44),
-              child: _FilterBar(),
-            ),
           ),
-        ],
-        body: state.when(
-          loading: () => const Center(
-              child: CircularProgressIndicator(color: AppColors.teal)),
-          error: (e, _) => _ErrorView(error: e.toString(), ref: ref),
-          data: (items) => items.isEmpty
-              ? _EmptyView()
-              : _SubtitleList(items: items),
         ),
       ),
     );
@@ -143,16 +207,20 @@ class _EmptyView extends StatelessWidget {
                   size: 48, color: AppColors.teal),
             ),
             const SizedBox(height: 20),
-            const Text('All subtitles complete!',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                )),
+            const Text(
+              'Semua subtitle lengkap!',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 8),
-            const Text('No missing subtitles found.',
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 13)),
+            const Text(
+              'Tidak ada subtitle yang hilang.',
+              style: TextStyle(
+                  color: AppColors.textSecondary, fontSize: 13),
+            ),
           ],
         ),
       );
@@ -175,19 +243,23 @@ class _ErrorView extends StatelessWidget {
               const Icon(Icons.wifi_off_rounded,
                   size: 48, color: AppColors.error),
               const SizedBox(height: 16),
-              const Text('Cannot connect to Bazarr',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  )),
+              const Text(
+                'Gagal terhubung ke Bazarr',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 8),
-              Text(error,
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12),
-                  textAlign: TextAlign.center,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis),
+              Text(
+                error,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
               const SizedBox(height: 24),
               FilledButton.icon(
                 icon: const Icon(Icons.refresh, size: 16),
@@ -238,11 +310,9 @@ class _SubtitleCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header row ─────────────────────────────────────────────
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Type icon
               Container(
                 padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
@@ -260,22 +330,21 @@ class _SubtitleCard extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 10),
-
-              // Title
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(s.displayTitle,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      s.displayTitle,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 3),
-                    // Missing languages
                     Row(
                       children: [
                         const Icon(Icons.subtitles_off_rounded,
@@ -299,13 +368,9 @@ class _SubtitleCard extends ConsumerWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 12),
-
-          // ── Action buttons ─────────────────────────────────────────
           Row(
             children: [
-              // Auto search
               Expanded(
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.auto_fix_high_rounded, size: 14),
@@ -318,7 +383,6 @@ class _SubtitleCard extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // Manual search
               Expanded(
                 child: FilledButton.icon(
                   icon: const Icon(Icons.search_rounded, size: 14),
@@ -348,15 +412,16 @@ class _SubtitleCard extends ConsumerWidget {
       }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Auto search started')),
+          const SnackBar(content: Text('Auto search dimulai')),
         );
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Failed: $e'),
-              backgroundColor: AppColors.error),
+            content: Text('Gagal: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     }
@@ -375,7 +440,7 @@ class _SubtitleCard extends ConsumerWidget {
   }
 }
 
-// ── Language picker sheet ─────────────────────────────────────────────────────
+// ── Language picker ───────────────────────────────────────────────────────────
 
 class _LanguagePickerSheet extends StatelessWidget {
   final SubtitleItem item;
@@ -389,10 +454,10 @@ class _LanguagePickerSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Drag handle
           Center(
             child: Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
                 color: AppColors.border,
@@ -400,39 +465,48 @@ class _LanguagePickerSheet extends StatelessWidget {
               ),
             ),
           ),
-          const Text('Select Language',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              )),
+          const Text(
+            'Pilih Bahasa',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(item.displayTitle,
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 13),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
+          Text(
+            item.displayTitle,
+            style: const TextStyle(
+                color: AppColors.textSecondary, fontSize: 13),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           const SizedBox(height: 16),
           ..._kLanguages.map((lang) => ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Container(
-                  width: 36, height: 36,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
                     color: AppColors.surfaceVariant,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Center(
-                    child: Text(lang.code.toUpperCase(),
-                        style: const TextStyle(
-                          color: AppColors.teal,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        )),
+                    child: Text(
+                      lang.code.toUpperCase(),
+                      style: const TextStyle(
+                        color: AppColors.teal,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
-                title: Text(lang.name,
-                    style: const TextStyle(
-                        color: AppColors.textPrimary, fontSize: 14)),
+                title: Text(
+                  lang.name,
+                  style: const TextStyle(
+                      color: AppColors.textPrimary, fontSize: 14),
+                ),
                 trailing: const Icon(Icons.chevron_right,
                     color: AppColors.textDisabled, size: 18),
                 onTap: () {
@@ -441,8 +515,8 @@ class _LanguagePickerSheet extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (_) => SubtitleSearchScreen(
-                        item:     item,
-                        language: lang.code,
+                        item:         item,
+                        language:     lang.code,
                         languageName: lang.name,
                       ),
                     ),
@@ -474,12 +548,8 @@ class SubtitleSearchScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mediaId = item.isMovie ? item.radarrId : item.sonarrEpisodeId;
-    final args = (
-      mediaId:  mediaId,
-      language: language,
-      isMovie:  item.isMovie,
-    );
-    final state = ref.watch(subtitleSearchProvider(args));
+    final args    = (mediaId: mediaId, language: language, isMovie: item.isMovie);
+    final state   = ref.watch(subtitleSearchProvider(args));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -488,14 +558,16 @@ class SubtitleSearchScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('$languageName Subtitles'),
-            Text(item.displayTitle,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis),
+            Text(
+              item.displayTitle,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),
@@ -503,32 +575,39 @@ class SubtitleSearchScreen extends ConsumerWidget {
         loading: () => const Center(
             child: CircularProgressIndicator(color: AppColors.teal)),
         error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.search_off_rounded,
-                  size: 48, color: AppColors.textDisabled),
-              const SizedBox(height: 12),
-              Text('Search failed: $e',
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.search_off_rounded,
+                    size: 48, color: AppColors.textDisabled),
+                const SizedBox(height: 12),
+                Text(
+                  'Gagal: $e',
                   style: const TextStyle(
                       color: AppColors.textSecondary, fontSize: 13),
-                  textAlign: TextAlign.center),
-            ],
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         ),
         data: (results) {
           if (results.isEmpty) {
             return const Center(
-              child: Text('No subtitles found',
-                  style: TextStyle(color: AppColors.textSecondary)),
+              child: Text(
+                'Tidak ada subtitle ditemukan',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
             );
           }
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
             itemCount: results.length,
             itemBuilder: (ctx, i) => _SubtitleResultCard(
-              result: results[i],
-              item:   item,
+              result:   results[i],
+              item:     item,
               language: language,
             ),
           );
@@ -555,8 +634,7 @@ class _SubtitleResultCard extends ConsumerStatefulWidget {
       _SubtitleResultCardState();
 }
 
-class _SubtitleResultCardState
-    extends ConsumerState<_SubtitleResultCard> {
+class _SubtitleResultCardState extends ConsumerState<_SubtitleResultCard> {
   bool _loading = false;
   bool _done    = false;
 
@@ -584,12 +662,14 @@ class _SubtitleResultCardState
           provider:   r.provider,
         );
       }
-      setState(() { _loading = false; _done = true; });
+      setState(() {
+        _loading = false;
+        _done    = true;
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Subtitle downloaded!')),
+          const SnackBar(content: Text('Subtitle berhasil didownload!')),
         );
-        // Refresh missing list
         ref.read(missingSubtitlesProvider.notifier).refresh();
         Navigator.pop(context);
       }
@@ -598,8 +678,9 @@ class _SubtitleResultCardState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Failed: $e'),
-              backgroundColor: AppColors.error),
+            content: Text('Gagal: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     }
@@ -620,19 +701,20 @@ class _SubtitleResultCardState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Release name + download button
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(r.release.isNotEmpty ? r.release : r.url,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
+                child: Text(
+                  r.release.isNotEmpty ? r.release : r.url,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(width: 8),
               GestureDetector(
@@ -648,10 +730,12 @@ class _SubtitleResultCardState
                   ),
                   child: _loading
                       ? const SizedBox(
-                          width: 14, height: 14,
+                          width: 14,
+                          height: 14,
                           child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: AppColors.background))
+                              color: AppColors.background),
+                        )
                       : Text(
                           _done ? 'Downloaded' : 'Download',
                           style: TextStyle(
@@ -666,28 +750,24 @@ class _SubtitleResultCardState
               ),
             ],
           ),
-
           const SizedBox(height: 8),
-
-          // Stats
           Wrap(
             spacing: 12,
             children: [
-              // Score
-              _stat(Icons.stars_rounded, r.scoreStr,
-                  r.score > 0.8
-                      ? AppColors.teal
-                      : r.score > 0.5
-                          ? AppColors.warning
-                          : AppColors.textSecondary),
-              // Provider
+              _stat(
+                Icons.stars_rounded,
+                r.scoreStr,
+                r.score > 0.8
+                    ? AppColors.teal
+                    : r.score > 0.5
+                        ? AppColors.warning
+                        : AppColors.textSecondary,
+              ),
               _stat(Icons.source_rounded, r.provider,
                   AppColors.textSecondary),
-              // Format
               if (r.format.isNotEmpty)
-                _stat(Icons.description_outlined, r.format.toUpperCase(),
-                    AppColors.textDisabled),
-              // HI
+                _stat(Icons.description_outlined,
+                    r.format.toUpperCase(), AppColors.textDisabled),
               if (r.hearingImpaired)
                 _stat(Icons.hearing_rounded, 'HI', AppColors.info),
             ],
@@ -702,11 +782,14 @@ class _SubtitleResultCardState
         children: [
           Icon(icon, size: 12, color: color),
           const SizedBox(width: 3),
-          Text(label,
-              style: TextStyle(
-                  color: color,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500)),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       );
 }
