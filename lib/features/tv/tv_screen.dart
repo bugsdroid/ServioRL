@@ -1,91 +1,97 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../core/config/config_provider.dart';
 import '../../core/theme/app_theme.dart';
 import 'tv_model.dart';
 import 'tv_provider.dart';
-
-// ══════════════════════════════════════════════════════════════════════════════
-// TV SERIES SCREEN
-// ══════════════════════════════════════════════════════════════════════════════
 
 class TvScreen extends ConsumerWidget {
   const TvScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(filteredTvProvider);
+    final cfg      = ref.watch(appConfigProvider);
+    final notReady = cfg.sonarrBaseUrl.isEmpty || cfg.sonarrApiKey.isEmpty;
+    final state    = ref.watch(filteredTvProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: NestedScrollView(
-        headerSliverBuilder: (context, _) => [
-          SliverAppBar(
-            pinned: true,
-            backgroundColor: AppColors.background,
-            title: state.whenOrNull(
-              data: (list) {
-                final all = ref.watch(tvSeriesProvider).valueOrNull ?? [];
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('TV Series'),
-                    Text('${all.length} series',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                        )),
+      body: notReady
+          ? _NotConfigured()
+          : NestedScrollView(
+              headerSliverBuilder: (context, _) => [
+                SliverAppBar(
+                  pinned: true,
+                  backgroundColor: AppColors.background,
+                  title: state.whenOrNull(
+                    data: (list) {
+                      final all = ref.watch(tvSeriesProvider).valueOrNull ?? [];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('TV Series'),
+                          Text(
+                            '${all.length} series',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ) ?? const Text('TV Series'),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.refresh, size: 20),
+                      onPressed: () =>
+                          ref.read(tvSeriesProvider.notifier).refresh(),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.sort_rounded, size: 20),
+                      onPressed: () => _showSortSheet(context, ref),
+                    ),
                   ],
-                );
-              },
-            ) ?? const Text('TV Series'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh, size: 20),
-                onPressed: () =>
-                    ref.read(tvSeriesProvider.notifier).refresh(),
-              ),
-              IconButton(
-                icon: const Icon(Icons.sort_rounded, size: 20),
-                onPressed: () => _showSortSheet(context, ref),
-              ),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(100),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: TextField(
-                      onChanged: (v) =>
-                          ref.read(tvSearchProvider.notifier).state = v,
-                      style: const TextStyle(
-                          color: AppColors.textPrimary, fontSize: 14),
-                      decoration: const InputDecoration(
-                        hintText: 'Search series...',
-                        prefixIcon: Icon(Icons.search,
-                            color: AppColors.textDisabled, size: 20),
-                      ),
+                  bottom: PreferredSize(
+                    preferredSize: const Size.fromHeight(100),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: TextField(
+                            onChanged: (v) =>
+                                ref.read(tvSearchProvider.notifier).state = v,
+                            style: const TextStyle(
+                                color: AppColors.textPrimary, fontSize: 14),
+                            decoration: const InputDecoration(
+                              hintText: 'Search series...',
+                              prefixIcon: Icon(Icons.search,
+                                  color: AppColors.textDisabled, size: 20),
+                            ),
+                          ),
+                        ),
+                        _FilterBar(),
+                      ],
                     ),
                   ),
-                  _FilterBar(),
-                ],
+                ),
+              ],
+              body: state.when(
+                loading: () => const Center(
+                    child: CircularProgressIndicator(color: AppColors.teal)),
+                error: (e, _) => _ErrorView(error: e.toString(), ref: ref),
+                data: (series) => series.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Tidak ada series ditemukan',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      )
+                    : _SeriesGrid(series: series),
               ),
             ),
-          ),
-        ],
-        body: state.when(
-          loading: () => const Center(
-              child: CircularProgressIndicator(color: AppColors.teal)),
-          error: (e, _) => _ErrorView(error: e.toString(), ref: ref),
-          data: (series) => series.isEmpty
-              ? const Center(
-                  child: Text('No series found',
-                      style: TextStyle(color: AppColors.textSecondary)))
-              : _SeriesGrid(series: series),
-        ),
-      ),
     );
   }
 
@@ -97,6 +103,67 @@ class TvScreen extends ConsumerWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => _SortSheet(ref: ref),
+    );
+  }
+}
+
+// ── Not configured ────────────────────────────────────────────────────────────
+
+class _NotConfigured extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        title: const Text('TV Series'),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.tv_outlined,
+                    size: 40, color: AppColors.textDisabled),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Sonarr belum dikonfigurasi',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Isi Base URL dan API Key Sonarr di Settings untuk melihat library series.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                icon: const Icon(Icons.settings_rounded, size: 16),
+                label: const Text('Buka Settings'),
+                onPressed: () =>
+                    Navigator.of(context).pushNamed('/settings'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -206,17 +273,16 @@ class _SeriesPoster extends StatelessWidget {
                         )
                       : _fallback(s),
 
-                  // Progress bar at bottom
+                  // Progress bar
                   Positioned(
                     bottom: 0, left: 0, right: 0,
                     child: Column(
                       children: [
                         if (s.missingEpisodes > 0 && s.monitored)
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 2),
-                            margin: const EdgeInsets.only(bottom: 3, right: 3),
                             alignment: Alignment.topRight,
+                            padding: const EdgeInsets.only(
+                                bottom: 3, right: 3),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 4, vertical: 1),
@@ -224,12 +290,14 @@ class _SeriesPoster extends StatelessWidget {
                                 color: AppColors.error.withOpacity(0.9),
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              child: Text('${s.missingEpisodes}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                  )),
+                              child: Text(
+                                '${s.missingEpisodes}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                             ),
                           ),
                         LinearProgressIndicator(
@@ -246,7 +314,7 @@ class _SeriesPoster extends StatelessWidget {
                     ),
                   ),
 
-                  // Continuing badge
+                  // ON AIR badge
                   if (s.status == SeriesStatus.continuing)
                     Positioned(
                       top: 5, left: 5,
@@ -257,12 +325,14 @@ class _SeriesPoster extends StatelessWidget {
                           color: AppColors.teal.withOpacity(0.9),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Text('ON AIR',
-                            style: TextStyle(
-                              color: AppColors.background,
-                              fontSize: 8,
-                              fontWeight: FontWeight.w800,
-                            )),
+                        child: const Text(
+                          'ON AIR',
+                          style: TextStyle(
+                            color: AppColors.background,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
                     ),
                 ],
@@ -270,17 +340,21 @@ class _SeriesPoster extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 5),
-          Text(s.title,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
-          Text(s.progressStr,
-              style: const TextStyle(
-                  color: AppColors.textDisabled, fontSize: 9)),
+          Text(
+            s.title,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            s.progressStr,
+            style: const TextStyle(
+                color: AppColors.textDisabled, fontSize: 9),
+          ),
         ],
       ),
     );
@@ -296,11 +370,13 @@ class _SeriesPoster extends StatelessWidget {
             const SizedBox(height: 6),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: Text(s.title,
-                  style: const TextStyle(
-                      color: AppColors.textDisabled, fontSize: 10),
-                  textAlign: TextAlign.center,
-                  maxLines: 2),
+              child: Text(
+                s.title,
+                style: const TextStyle(
+                    color: AppColors.textDisabled, fontSize: 10),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+              ),
             ),
           ],
         ),
@@ -329,18 +405,22 @@ class _SortSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Sort by',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              )),
+          const Text(
+            'Sort by',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 12),
           ...TvSort.values.map((s) => ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(options[s]!,
-                    style: const TextStyle(
-                        color: AppColors.textPrimary, fontSize: 14)),
+                title: Text(
+                  options[s]!,
+                  style: const TextStyle(
+                      color: AppColors.textPrimary, fontSize: 14),
+                ),
                 trailing: s == current
                     ? const Icon(Icons.check, color: AppColors.teal)
                     : null,
@@ -372,19 +452,23 @@ class _ErrorView extends StatelessWidget {
               const Icon(Icons.wifi_off_rounded,
                   size: 48, color: AppColors.error),
               const SizedBox(height: 16),
-              const Text('Cannot connect to Sonarr',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  )),
+              const Text(
+                'Gagal terhubung ke Sonarr',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 8),
-              Text(error,
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12),
-                  textAlign: TextAlign.center,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis),
+              Text(
+                error,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12),
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
               const SizedBox(height: 24),
               FilledButton.icon(
                 icon: const Icon(Icons.refresh, size: 16),
@@ -414,7 +498,6 @@ class TvDetailScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       body: CustomScrollView(
         slivers: [
-          // ── Fanart header ──────────────────────────────────────────
           SliverAppBar(
             expandedHeight: 220,
             pinned: true,
@@ -449,22 +532,19 @@ class TvDetailScreen extends ConsumerWidget {
               ),
             ),
           ),
-
-          // ── Content ────────────────────────────────────────────────
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                // Title
-                Text(s.title,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                    )),
+                Text(
+                  s.title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 4),
-
-                // Meta
                 Wrap(
                   spacing: 8,
                   children: [
@@ -478,7 +558,7 @@ class TvDetailScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
 
-                // Progress bar
+                // Progress
                 Row(
                   children: [
                     Expanded(
@@ -499,10 +579,12 @@ class TvDetailScreen extends ConsumerWidget {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Text(s.progressStr,
-                              style: const TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 11)),
+                          Text(
+                            s.progressStr,
+                            style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11),
+                          ),
                         ],
                       ),
                     ),
@@ -515,22 +597,24 @@ class TvDetailScreen extends ConsumerWidget {
                           color: AppColors.error.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Text('${s.missingEpisodes} missing',
-                            style: const TextStyle(
-                                color: AppColors.error,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600)),
+                        child: Text(
+                          '${s.missingEpisodes} missing',
+                          style: const TextStyle(
+                              color: AppColors.error,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ],
                   ],
                 ),
-
                 const SizedBox(height: 16),
 
                 // Genres
                 if (s.genres.isNotEmpty) ...[
                   Wrap(
-                    spacing: 6, runSpacing: 6,
+                    spacing: 6,
+                    runSpacing: 6,
                     children: s.genres
                         .map((g) => Container(
                               padding: const EdgeInsets.symmetric(
@@ -541,11 +625,13 @@ class TvDetailScreen extends ConsumerWidget {
                                 border: Border.all(
                                     color: AppColors.border, width: 0.5),
                               ),
-                              child: Text(g,
-                                  style: const TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 11,
-                                  )),
+                              child: Text(
+                                g,
+                                style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 11,
+                                ),
+                              ),
                             ))
                         .toList(),
                   ),
@@ -554,40 +640,41 @@ class TvDetailScreen extends ConsumerWidget {
 
                 // Overview
                 if (s.overview.isNotEmpty) ...[
-                  const Text('Overview',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      )),
-                  const SizedBox(height: 8),
-                  Text(s.overview,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
-                        height: 1.6,
-                      )),
-                  const SizedBox(height: 20),
-                ],
-
-                // Seasons
-                const Text('Seasons',
+                  const Text(
+                    'Overview',
                     style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                    )),
-                const SizedBox(height: 10),
-                ...List.generate(
-                  s.seasonCount,
-                  (i) {
-                    final seasonNum = s.seasonCount - i;
-                    return _SeasonTile(
-                      series: s,
-                      seasonNumber: seasonNum,
-                    );
-                  },
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    s.overview,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                      height: 1.6,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                // Seasons
+                const Text(
+                  'Seasons',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
+                const SizedBox(height: 10),
+                ...List.generate(s.seasonCount, (i) {
+                  final seasonNum = s.seasonCount - i;
+                  return _SeasonTile(
+                      series: s, seasonNumber: seasonNum);
+                }),
               ]),
             ),
           ),
@@ -596,9 +683,11 @@ class TvDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _meta(String text) => Text(text,
-      style: const TextStyle(
-          color: AppColors.textSecondary, fontSize: 13));
+  Widget _meta(String text) => Text(
+        text,
+        style: const TextStyle(
+            color: AppColors.textSecondary, fontSize: 13),
+      );
 }
 
 // ── Season tile ───────────────────────────────────────────────────────────────
@@ -606,7 +695,8 @@ class TvDetailScreen extends ConsumerWidget {
 class _SeasonTile extends StatefulWidget {
   final TvSeries series;
   final int seasonNumber;
-  const _SeasonTile({required this.series, required this.seasonNumber});
+  const _SeasonTile(
+      {required this.series, required this.seasonNumber});
 
   @override
   State<_SeasonTile> createState() => _SeasonTileState();
@@ -626,7 +716,6 @@ class _SeasonTileState extends State<_SeasonTile> {
       ),
       child: Column(
         children: [
-          // Header
           InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () => setState(() => _expanded = !_expanded),
@@ -636,18 +725,21 @@ class _SeasonTileState extends State<_SeasonTile> {
               child: Row(
                 children: [
                   Container(
-                    width: 36, height: 36,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
                       color: AppColors.surfaceVariant,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Center(
-                      child: Text('S${widget.seasonNumber}',
-                          style: const TextStyle(
-                            color: AppColors.teal,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          )),
+                      child: Text(
+                        'S${widget.seasonNumber}',
+                        style: const TextStyle(
+                          color: AppColors.teal,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -661,7 +753,6 @@ class _SeasonTileState extends State<_SeasonTile> {
                       ),
                     ),
                   ),
-                  // Search season button
                   Consumer(builder: (ctx, ref, _) {
                     return IconButton(
                       icon: const Icon(Icons.search_rounded,
@@ -677,8 +768,9 @@ class _SeasonTileState extends State<_SeasonTile> {
                         if (ctx.mounted) {
                           ScaffoldMessenger.of(ctx).showSnackBar(
                             SnackBar(
-                                content: Text(
-                                    'Searching Season ${widget.seasonNumber}...')),
+                              content: Text(
+                                  'Searching Season ${widget.seasonNumber}...'),
+                            ),
                           );
                         }
                       },
@@ -695,8 +787,6 @@ class _SeasonTileState extends State<_SeasonTile> {
               ),
             ),
           ),
-
-          // Episodes
           if (_expanded)
             Consumer(builder: (ctx, ref, _) {
               final state = ref.watch(episodeProvider((
@@ -707,21 +797,25 @@ class _SeasonTileState extends State<_SeasonTile> {
                 loading: () => const Padding(
                   padding: EdgeInsets.all(16),
                   child: Center(
-                      child: CircularProgressIndicator(
-                          color: AppColors.teal, strokeWidth: 2)),
+                    child: CircularProgressIndicator(
+                        color: AppColors.teal, strokeWidth: 2),
+                  ),
                 ),
                 error: (e, _) => Padding(
                   padding: const EdgeInsets.all(12),
-                  child: Text('Error: $e',
-                      style: const TextStyle(
-                          color: AppColors.error, fontSize: 12)),
+                  child: Text(
+                    'Error: $e',
+                    style: const TextStyle(
+                        color: AppColors.error, fontSize: 12),
+                  ),
                 ),
                 data: (episodes) => Column(
                   children: [
-                    const Divider(height: 0, indent: 14, endIndent: 14),
+                    const Divider(
+                        height: 0, indent: 14, endIndent: 14),
                     ...episodes.map((ep) => _EpisodeTile(
                           episode: ep,
-                          series: widget.series,
+                          series:  widget.series,
                         )),
                   ],
                 ),
@@ -738,7 +832,8 @@ class _SeasonTileState extends State<_SeasonTile> {
 class _EpisodeTile extends StatelessWidget {
   final Episode episode;
   final TvSeries series;
-  const _EpisodeTile({required this.episode, required this.series});
+  const _EpisodeTile(
+      {required this.episode, required this.series});
 
   @override
   Widget build(BuildContext context) {
@@ -746,7 +841,8 @@ class _EpisodeTile extends StatelessWidget {
     return ListTile(
       dense: true,
       leading: Container(
-        width: 36, height: 36,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
           color: ep.hasFile
               ? AppColors.tealSurface
@@ -766,23 +862,25 @@ class _EpisodeTile extends StatelessWidget {
           ),
         ),
       ),
-      title: Text(ep.title,
-          style: TextStyle(
-            color: ep.hasFile
-                ? AppColors.textPrimary
-                : AppColors.textSecondary,
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis),
+      title: Text(
+        ep.title,
+        style: TextStyle(
+          color: ep.hasFile
+              ? AppColors.textPrimary
+              : AppColors.textSecondary,
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       subtitle: ep.quality.isNotEmpty
           ? Text(ep.quality,
               style: const TextStyle(
                   color: AppColors.teal, fontSize: 11))
           : ep.airDate != null
               ? Text(
-                  _formatDate(ep.airDate!),
+                  '${ep.airDate!.day}/${ep.airDate!.month}/${ep.airDate!.year}',
                   style: const TextStyle(
                       color: AppColors.textDisabled, fontSize: 11),
                 )
@@ -790,17 +888,16 @@ class _EpisodeTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Status icon
           Icon(
             ep.hasFile
                 ? Icons.check_circle_rounded
                 : Icons.radio_button_unchecked_rounded,
-            color:
-                ep.hasFile ? AppColors.teal : AppColors.textDisabled,
+            color: ep.hasFile
+                ? AppColors.teal
+                : AppColors.textDisabled,
             size: 16,
           ),
           const SizedBox(width: 4),
-          // Interactive search
           Consumer(builder: (ctx, ref, _) {
             return IconButton(
               icon: const Icon(Icons.search_rounded,
@@ -813,7 +910,7 @@ class _EpisodeTile extends StatelessWidget {
                 MaterialPageRoute(
                   builder: (_) => TvInteractiveSearchScreen(
                     episode: ep,
-                    series: series,
+                    series:  series,
                   ),
                 ),
               ),
@@ -822,10 +919,6 @@ class _EpisodeTile extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _formatDate(DateTime dt) {
-    return '${dt.day}/${dt.month}/${dt.year}';
   }
 }
 
@@ -865,33 +958,38 @@ class TvInteractiveSearchScreen extends ConsumerWidget {
         loading: () => const Center(
             child: CircularProgressIndicator(color: AppColors.teal)),
         error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.search_off_rounded,
-                  size: 48, color: AppColors.textDisabled),
-              const SizedBox(height: 12),
-              Text('Search failed: $e',
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.search_off_rounded,
+                    size: 48, color: AppColors.textDisabled),
+                const SizedBox(height: 12),
+                Text(
+                  'Gagal: $e',
                   style: const TextStyle(
                       color: AppColors.textSecondary, fontSize: 13),
-                  textAlign: TextAlign.center),
-            ],
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         ),
         data: (releases) {
           if (releases.isEmpty) {
             return const Center(
-              child: Text('No releases found',
-                  style: TextStyle(color: AppColors.textSecondary)),
+              child: Text(
+                'Tidak ada release ditemukan',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
             );
           }
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
             itemCount: releases.length,
-            itemBuilder: (ctx, i) => _TvReleaseCard(
-              release: releases[i],
-              ref: ref,
-            ),
+            itemBuilder: (ctx, i) =>
+                _TvReleaseCard(release: releases[i], ref: ref),
           );
         },
       ),
@@ -921,18 +1019,23 @@ class _TvReleaseCardState extends State<_TvReleaseCard> {
       await widget.ref
           .read(tvRepositoryProvider)
           .grabRelease(widget.release.guid, 0);
-      setState(() { _loading = false; _grabbed = true; });
+      setState(() {
+        _loading = false;
+        _grabbed = true;
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Release grabbed!')),
+          const SnackBar(content: Text('Release berhasil di-grab!')),
         );
       }
     } catch (e) {
       setState(() => _loading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e'),
-              backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Gagal: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     }
@@ -945,7 +1048,9 @@ class _TvReleaseCardState extends State<_TvReleaseCard> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: r.rejected ? AppColors.card.withOpacity(0.5) : AppColors.card,
+        color: r.rejected
+            ? AppColors.card.withOpacity(0.5)
+            : AppColors.card,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: r.rejected
@@ -961,16 +1066,18 @@ class _TvReleaseCardState extends State<_TvReleaseCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(r.title,
-                    style: TextStyle(
-                      color: r.rejected
-                          ? AppColors.textDisabled
-                          : AppColors.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
+                child: Text(
+                  r.title,
+                  style: TextStyle(
+                    color: r.rejected
+                        ? AppColors.textDisabled
+                        : AppColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(width: 8),
               if (!r.rejected)
@@ -987,10 +1094,12 @@ class _TvReleaseCardState extends State<_TvReleaseCard> {
                     ),
                     child: _loading
                         ? const SizedBox(
-                            width: 14, height: 14,
+                            width: 14,
+                            height: 14,
                             child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppColors.background))
+                                color: AppColors.background),
+                          )
                         : Text(
                             _grabbed ? 'Grabbed' : 'Grab',
                             style: TextStyle(
@@ -1009,7 +1118,8 @@ class _TvReleaseCardState extends State<_TvReleaseCard> {
           Wrap(
             spacing: 12,
             children: [
-              _stat(Icons.high_quality_rounded, r.quality, AppColors.teal),
+              _stat(Icons.high_quality_rounded, r.quality,
+                  AppColors.teal),
               if (r.sizeStr.isNotEmpty)
                 _stat(Icons.storage_rounded, r.sizeStr,
                     AppColors.textSecondary),
@@ -1030,11 +1140,13 @@ class _TvReleaseCardState extends State<_TvReleaseCard> {
           ),
           if (r.rejections.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(r.rejections.join(' • '),
-                style: const TextStyle(
-                    color: AppColors.error, fontSize: 10),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis),
+            Text(
+              r.rejections.join(' • '),
+              style: const TextStyle(
+                  color: AppColors.error, fontSize: 10),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ],
       ),
@@ -1046,11 +1158,14 @@ class _TvReleaseCardState extends State<_TvReleaseCard> {
         children: [
           Icon(icon, size: 12, color: color),
           const SizedBox(width: 3),
-          Text(label,
-              style: TextStyle(
-                  color: color,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500)),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       );
 }
